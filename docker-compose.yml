@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hayawanat_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hayawanat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hayawanat_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-hayawanat_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hayawanat} -d ${POSTGRES_DB:-hayawanat_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hayawanat_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hayawanat_backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hayawanat}:${POSTGRES_PASSWORD:-hayawanat_secret}@postgres:5432/${POSTGRES_DB:-hayawanat_db}
+    ports:
+      - "8000:8000"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - hayawanat_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hayawanat_frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - hayawanat_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: hayawanat_postgres_data
+
+networks:
+  hayawanat_network:
+    name: hayawanat_network
+    driver: bridge
