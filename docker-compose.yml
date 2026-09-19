@@ -42,10 +42,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # VITE_* vars must be build-time args (Vite bakes them into the JS bundle)
+      # Change 192.168.1.160 to your PC's LAN IP for multi-device testing
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000}
     container_name: hayawanat_frontend
-    environment:
-      VITE_API_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000
     ports:
       - "5173:5173"
     depends_on:

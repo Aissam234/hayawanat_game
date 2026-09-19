@@ -21,9 +21,9 @@ app = FastAPI(
 )
 
 # CORS
+# NOTE: allow_credentials=True is incompatible with wildcard "*".
+# We always use an explicit origins list from ALLOWED_ORIGINS env var.
 origins = settings.allowed_origins_list
-if settings.environment != "production":
-    origins.append("*")
 
 app.add_middleware(
     CORSMiddleware,
