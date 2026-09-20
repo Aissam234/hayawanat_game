@@ -99,4 +99,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ animal_id: animalId }),
     }),
+
+  // Settings
+  updateSettings: async (roomCode: string, settings: {
+    difficulty?: string
+    timer_duration?: number | null
+    max_questions?: number | null
+    allow_repeated?: boolean
+    reactions_enabled?: boolean
+  }, guestUuid: string) => {
+    const res = await fetch(`/api/rooms/${roomCode}/settings?guest_uuid=${guestUuid}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'فشل في حفظ الإعدادات')
+    }
+    return res.json()
+  },
+
+  getSettings: async (roomCode: string) => {
+    const res = await fetch(`/api/rooms/${roomCode}/settings`)
+    if (!res.ok) throw new Error('فشل في جلب الإعدادات')
+    return res.json()
+  },
 }

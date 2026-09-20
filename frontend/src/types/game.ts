@@ -5,6 +5,7 @@ export type ParticipantRole = 'host' | 'player' | 'audience'
 export type RoundStatus = 'active' | 'finished'
 export type QuestionAnswer = 'pending' | 'yes' | 'no' | 'invalid'
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'random'
+export type EndReason = 'guess' | 'timer_expired' | 'cancelled'
 
 export interface Animal {
   id: number
@@ -18,6 +19,7 @@ export interface Participant {
   display_name: string
   role: ParticipantRole
   is_connected: boolean
+  score: number
 }
 
 export interface Room {
@@ -26,6 +28,28 @@ export interface Room {
   status: RoomStatus
   host_participant_id: string | null
   participants: Participant[]
+}
+
+export interface GameSettings {
+  difficulty: Difficulty
+  timer_duration: number | null   // seconds; null = no timer
+  max_questions: number | null    // null = unlimited
+  allow_repeated: boolean
+  reactions_enabled: boolean
+}
+
+export interface ScoreboardEntry {
+  participant_id: string
+  display_name: string
+  score: number
+}
+
+export interface ReactionEvent {
+  id: string          // client-generated UUID for AnimatePresence key
+  emoji: string
+  participant_id: string
+  display_name: string
+  ts: number
 }
 
 export interface Round {
@@ -45,6 +69,13 @@ export interface Round {
   my_role_in_round?: 'player1' | 'player2' | 'audience'
   player1_animal?: Animal           // for host/audience
   player2_animal?: Animal           // for host/audience
+  // Timer
+  timer_duration?: number | null
+  timer_started_at?: string | null
+  timer_ends_at?: number | null     // JS ms epoch
+  // Settings baked into round
+  max_questions?: number | null
+  reactions_enabled?: boolean
 }
 
 export interface Question {
@@ -80,6 +111,8 @@ export interface RoundFinishedData {
   guess_count: number
   started_at: string | null
   finished_at: string | null
+  end_reason: EndReason
+  scoreboard: ScoreboardEntry[]
 }
 
 // === Session ===
@@ -110,6 +143,11 @@ export type WsEventType =
   | 'host_transferred'
   | 'room_closed'
   | 'pong'
+  | 'reaction'
+  | 'timer_started'
+  | 'timer_expired'
+  | 'game_settings_updated'
+  | 'scoreboard_updated'
 
 export interface WsEvent {
   type: WsEventType

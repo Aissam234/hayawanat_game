@@ -13,6 +13,7 @@ def serialize_round_for_participant(round: Round, viewer: Participant) -> dict:
     - Player1: sees opponent's animal (player2's animal) only
     - Player2: sees opponent's animal (player1's animal) only
     - Host/Audience: sees both animals
+    Also includes timer state so reconnecting clients can restore countdown.
     """
     base = {
         "id": str(round.id),
@@ -22,10 +23,20 @@ def serialize_round_for_participant(round: Round, viewer: Participant) -> dict:
         "player2_id": str(round.player2_id),
         "player2_name": round.player2.display_name if round.player2 else "",
         "current_turn_player_id": str(round.current_turn_player_id) if round.current_turn_player_id else None,
-        "status": round.status.value if hasattr(round.status, 'value') else round.status,
+        "status": round.status.value if hasattr(round.status, "value") else round.status,
         "difficulty": round.difficulty,
         "question_count": round.question_count,
         "guess_count": round.guess_count,
+        # Timer fields — authoritative; frontend uses these to reconstruct countdown
+        "timer_duration": round.timer_duration,
+        "timer_started_at": round.timer_started_at.isoformat() if round.timer_started_at else None,
+        "timer_ends_at": (
+            (round.timer_started_at.timestamp() + round.timer_duration) * 1000  # JS ms epoch
+            if round.timer_duration and round.timer_started_at else None
+        ),
+        # Settings visible to all
+        "max_questions": round.max_questions,
+        "reactions_enabled": round.reactions_enabled,
     }
 
     viewer_id = str(viewer.id)
@@ -65,4 +76,6 @@ def serialize_round_finished(round: Round) -> dict:
         "guess_count": round.guess_count,
         "started_at": round.started_at.isoformat() if round.started_at else None,
         "finished_at": round.finished_at.isoformat() if round.finished_at else None,
+        # end_reason: 'guess' | 'timer_expired' | 'cancelled'
+        "end_reason": round.cancelled_reason if round.cancelled_reason else "guess",
     }

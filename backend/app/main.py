@@ -4,7 +4,7 @@ FastAPI main application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.api import rooms, rounds, questions, guesses
+from app.api import rooms, rounds, questions, guesses, settings as settings_api
 from app.api.rounds import animals_router
 from app.websocket import handlers
 import logging
@@ -39,6 +39,7 @@ app.include_router(rounds.router)
 app.include_router(questions.router)
 app.include_router(guesses.router)
 app.include_router(animals_router)
+app.include_router(settings_api.router)
 
 # WebSocket
 app.include_router(handlers.router)

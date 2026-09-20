@@ -3,37 +3,30 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { api } from '../services/api'
-import { Difficulty } from '../types/game'
+import { GameSettings } from '../types/game'
 import ParticipantList from '../components/lobby/ParticipantList'
+import HostSettingsPanel from '../components/lobby/HostSettingsPanel'
 import ConnectionStatus from '../components/shared/ConnectionStatus'
+import Scoreboard from '../components/game/Scoreboard'
 import { loadSession } from '../utils/session'
-import { Copy, Check, Play, Settings, LogOut, Trash2 } from 'lucide-react'
+import { Copy, Check, Play, LogOut, Trash2 } from 'lucide-react'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { toast } from '../store/toastStore'
-
-const difficultyOptions: { value: Difficulty; label: string; desc: string }[] = [
-  { value: 'easy', label: '🐣 سهل', desc: 'حيوانات مألوفة' },
-  { value: 'medium', label: '🦊 متوسط', desc: 'حيوانات متنوعة' },
-  { value: 'hard', label: '🦎 صعب', desc: 'حيوانات نادرة' },
-  { value: 'random', label: '🎲 عشوائي', desc: 'مفاجأة!' },
-]
 
 export default function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>()
   const navigate = useNavigate()
   const {
-    guestUuid, participantId, participants, room, isConnected,
-    setSession, setRoom, setParticipants, connectWs, reset
+    guestUuid, participantId, participants, room, isConnected, settings, scoreboard,
+    setSession, setRoom, setParticipants, connectWs, reset, setSettings
   } = useGameStore()
 
   const [player1Id, setPlayer1Id] = useState('')
   const [player2Id, setPlayer2Id] = useState('')
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // Modal states
   const [modalState, setModalState] = useState<{
     isOpen: boolean
     type: 'leave' | 'close' | 'remove' | 'transfer' | null
@@ -48,7 +41,6 @@ export default function LobbyPage() {
     const init = async () => {
       let uuid = guestUuid
       let pId = participantId
-      let dName = ''
 
       if (!uuid || !pId) {
         const session = loadSession()
@@ -66,6 +58,16 @@ export default function LobbyPage() {
         setRoom(roomData)
         setParticipants(roomData.participants)
         connectWs(roomCode!, pId)
+
+        // Load current settings from server
+        try {
+          const settingsData = await api.getSettings(roomCode!)
+          if (settingsData.settings) {
+            setSettings(settingsData.settings)
+          }
+        } catch {
+          // Non-critical — ignore
+        }
       } catch {
         navigate('/')
       }
@@ -100,7 +102,7 @@ export default function LobbyPage() {
     if (player1Id === player2Id) { setError('يجب اختيار لاعبين مختلفين'); return }
     setStarting(true); setError('')
     try {
-      await api.startRound(roomCode!, player1Id, player2Id, difficulty, guestUuid)
+      await api.startRound(roomCode!, player1Id, player2Id, settings.difficulty, guestUuid)
       navigate(`/game/${roomCode}`)
     } catch (e: any) {
       setError(e.message || 'خطأ في بدء الجولة')
@@ -109,56 +111,33 @@ export default function LobbyPage() {
   }
 
   const getModalProps = () => {
-    const targetName = modalState.targetId 
-      ? participants.find(p => p.id === modalState.targetId)?.display_name 
+    const targetName = modalState.targetId
+      ? participants.find(p => p.id === modalState.targetId)?.display_name
       : ''
-    
     switch (modalState.type) {
       case 'leave':
         return {
-          title: 'مغادرة الغرفة',
-          message: 'هل تريد مغادرة الغرفة؟',
-          confirmText: 'مغادرة',
-          isDestructive: true,
-          onConfirm: async () => {
-            await api.leaveRoom(roomCode!, guestUuid)
-            reset()
-            navigate('/')
-          }
+          title: 'مغادرة الغرفة', message: 'هل تريد مغادرة الغرفة؟',
+          confirmText: 'مغادرة', isDestructive: true,
+          onConfirm: async () => { await api.leaveRoom(roomCode!, guestUuid); reset(); navigate('/') }
         }
       case 'close':
         return {
-          title: 'إغلاق الغرفة',
-          message: 'سيتم إنهاء الغرفة وإخراج جميع المشاركين. هل أنت متأكد؟',
-          confirmText: 'إغلاق الغرفة',
-          isDestructive: true,
-          onConfirm: async () => {
-            await api.closeRoom(roomCode!, guestUuid)
-            reset()
-            navigate('/')
-          }
+          title: 'إغلاق الغرفة', message: 'سيتم إنهاء الغرفة وإخراج جميع المشاركين. هل أنت متأكد؟',
+          confirmText: 'إغلاق الغرفة', isDestructive: true,
+          onConfirm: async () => { await api.closeRoom(roomCode!, guestUuid); reset(); navigate('/') }
         }
       case 'remove':
         return {
-          title: 'إزالة من الغرفة',
-          message: `هل تريد إزالة ${targetName} من الغرفة؟`,
-          confirmText: 'إزالة',
-          isDestructive: true,
-          onConfirm: async () => {
-            await api.removeParticipant(roomCode!, modalState.targetId!, guestUuid)
-            setModalState({ isOpen: false, type: null })
-          }
+          title: 'إزالة من الغرفة', message: `هل تريد إزالة ${targetName} من الغرفة؟`,
+          confirmText: 'إزالة', isDestructive: true,
+          onConfirm: async () => { await api.removeParticipant(roomCode!, modalState.targetId!, guestUuid); setModalState({ isOpen: false, type: null }) }
         }
       case 'transfer':
         return {
-          title: 'نقل الإدارة',
-          message: `هل تريد تعيين ${targetName} مديراً للغرفة؟`,
-          confirmText: 'تأكيد',
-          isDestructive: false,
-          onConfirm: async () => {
-            await api.transferHost(roomCode!, modalState.targetId!, guestUuid)
-            setModalState({ isOpen: false, type: null })
-          }
+          title: 'نقل الإدارة', message: `هل تريد تعيين ${targetName} مديراً للغرفة؟`,
+          confirmText: 'تأكيد', isDestructive: false,
+          onConfirm: async () => { await api.transferHost(roomCode!, modalState.targetId!, guestUuid); setModalState({ isOpen: false, type: null }) }
         }
       default:
         return { title: '', message: '', onConfirm: () => {} }
@@ -168,7 +147,7 @@ export default function LobbyPage() {
   return (
     <div className="min-h-screen bg-animated bg-dots p-4 pb-8">
       <ConnectionStatus isConnected={isConnected} />
-      
+
       <ConfirmModal
         isOpen={modalState.isOpen}
         {...getModalProps()}
@@ -178,31 +157,26 @@ export default function LobbyPage() {
       <div className="max-w-lg mx-auto space-y-4">
         {/* Header Actions */}
         <div className="flex justify-between items-center pt-2">
-          <button 
+          <button
             onClick={() => setModalState({ isOpen: true, type: 'leave' })}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
           >
             <LogOut size={16} />
             مغادرة
           </button>
-          
           {isHost && (
-            <button 
+            <button
               onClick={() => setModalState({ isOpen: true, type: 'close' })}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/50 rounded-xl transition-colors"
             >
-              <Settings size={16} />
-              إعدادات الغرفة
+              <Trash2 size={16} />
+              إغلاق الغرفة
             </button>
           )}
         </div>
 
         {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center pb-2"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center pb-2">
           <div className="text-5xl mb-3">🐾</div>
           <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-indigo-400 to-violet-400 pb-2">
             غرفة الانتظار
@@ -211,9 +185,7 @@ export default function LobbyPage() {
 
         {/* Room code card */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="glass rounded-2xl p-5 border border-game-border text-center"
         >
           <p className="text-game-text-muted text-sm mb-2">كود الغرفة</p>
@@ -233,14 +205,11 @@ export default function LobbyPage() {
 
         {/* Participants */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="glass rounded-2xl p-5 border border-game-border"
         >
           <h2 className="text-base font-bold text-game-text mb-3 flex items-center gap-2">
-            <span>👥</span>
-            المشاركون ({participants.length})
+            <span>👥</span> المشاركون ({participants.length})
           </h2>
           <ParticipantList
             participants={participants}
@@ -252,62 +221,55 @@ export default function LobbyPage() {
           />
         </motion.div>
 
+        {/* Scoreboard — shows after at least one round */}
+        {scoreboard.some(e => e.score > 0) && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <Scoreboard scoreboard={scoreboard} myId={participantId} />
+          </motion.div>
+        )}
+
         {/* Host controls */}
         {isHost && participants.length >= 2 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="glass rounded-2xl p-5 border border-game-border space-y-4"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="space-y-4"
           >
-            <h2 className="text-base font-bold text-game-text flex items-center gap-2">
-              <span>👑</span> إعداد الجولة
-            </h2>
-
             {/* Player selection */}
-            <div className="space-y-3">
-              {[
-                { label: 'اللاعب الأول', value: player1Id, set: setPlayer1Id },
-                { label: 'اللاعب الثاني', value: player2Id, set: setPlayer2Id },
-              ].map(({ label, value, set }) => (
-                <div key={label}>
-                  <label className="text-sm text-game-text-muted mb-1.5 block">{label}</label>
-                  <select
-                    value={value}
-                    onChange={e => set(e.target.value)}
-                    className="w-full bg-game-surface border border-game-border rounded-xl py-2.5 px-3 text-game-text focus:border-game-primary transition-colors"
-                  >
-                    <option value="">— اختر لاعباً —</option>
-                    {participants.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.display_name} {p.role === 'host' ? '👑' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
-
-            {/* Difficulty */}
-            <div>
-              <label className="text-sm text-game-text-muted mb-2 block">مستوى الصعوبة</label>
-              <div className="grid grid-cols-2 gap-2">
-                {difficultyOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setDifficulty(opt.value)}
-                    className={`py-2.5 px-3 rounded-xl border text-sm font-semibold transition-all text-right ${
-                      difficulty === opt.value
-                        ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300'
-                        : 'border-game-border text-game-text-muted hover:border-game-primary/50'
-                    }`}
-                  >
-                    <div>{opt.label}</div>
-                    <div className="text-xs font-normal mt-0.5 text-game-text-muted">{opt.desc}</div>
-                  </button>
+            <div className="glass rounded-2xl p-5 border border-game-border space-y-4">
+              <h2 className="text-base font-bold text-game-text flex items-center gap-2">
+                <span>👑</span> اختيار اللاعبين
+              </h2>
+              <div className="space-y-3">
+                {[
+                  { label: 'اللاعب الأول', value: player1Id, set: setPlayer1Id },
+                  { label: 'اللاعب الثاني', value: player2Id, set: setPlayer2Id },
+                ].map(({ label, value, set }) => (
+                  <div key={label}>
+                    <label className="text-sm text-game-text-muted mb-1.5 block">{label}</label>
+                    <select
+                      value={value}
+                      onChange={e => set(e.target.value)}
+                      className="w-full bg-game-surface border border-game-border rounded-xl py-2.5 px-3 text-game-text focus:border-game-primary transition-colors"
+                    >
+                      <option value="">— اختر لاعباً —</option>
+                      {participants.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.display_name} {p.role === 'host' ? '👑' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
               </div>
             </div>
+
+            {/* Settings panel */}
+            <HostSettingsPanel
+              roomCode={roomCode!}
+              guestUuid={guestUuid}
+              settings={settings}
+              onSettingsChange={setSettings}
+            />
 
             {error && (
               <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
@@ -330,9 +292,7 @@ export default function LobbyPage() {
 
         {!isHost && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
             className="glass rounded-2xl p-5 border border-game-border text-center"
           >
             <div className="waiting-dots mb-3 flex justify-center gap-1">

@@ -1,13 +1,13 @@
 """
 Round / Game engine service.
-Handles: start round, questions, answers, guesses, victory.
+Handles: start round, questions, answers, guesses, victory, timer expiry, settings.
 """
 import uuid
 import random
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.models import (
-    Room, Participant, Round, Question, Guess, GameEvent,
+    Room, Participant, Round, Question, Guess, GameEvent, RoomSettings,
     RoomStatus, ParticipantRole, RoundStatus, QuestionAnswer
 )
 from app.game.animals import ANIMALS_BY_DIFFICULTY, ANIMALS, get_animal
@@ -40,12 +40,52 @@ def get_active_round(db: Session, room_id: uuid.UUID) -> Round | None:
     ).first()
 
 
+def get_or_create_settings(db: Session, room_id: uuid.UUID) -> RoomSettings:
+    """Return existing room settings or create defaults."""
+    settings = db.query(RoomSettings).filter(RoomSettings.room_id == room_id).first()
+    if not settings:
+        settings = RoomSettings(room_id=room_id)
+        db.add(settings)
+        db.flush()
+    return settings
+
+
+def update_room_settings(
+    db: Session,
+    room_id: uuid.UUID,
+    difficulty: str | None = None,
+    timer_duration: int | None = ...,
+    max_questions: int | None = ...,
+    allow_repeated: bool | None = None,
+    reactions_enabled: bool | None = None,
+) -> RoomSettings:
+    """Update host game settings. Uses sentinel ... to distinguish 'not provided' from None."""
+    settings = get_or_create_settings(db, room_id)
+    if difficulty is not None:
+        settings.difficulty = difficulty
+    if timer_duration is not ...:
+        settings.timer_duration = timer_duration
+    if max_questions is not ...:
+        settings.max_questions = max_questions
+    if allow_repeated is not None:
+        settings.allow_repeated = allow_repeated
+    if reactions_enabled is not None:
+        settings.reactions_enabled = reactions_enabled
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
 def start_round(
     db: Session,
     room: Room,
     player1_id: uuid.UUID,
     player2_id: uuid.UUID,
     difficulty: str = "medium",
+    timer_duration: int | None = None,
+    max_questions: int | None = None,
+    allow_repeated: bool = True,
+    reactions_enabled: bool = True,
 ) -> Round:
     # End any existing active round
     active = get_active_round(db, room.id)
@@ -53,11 +93,26 @@ def start_round(
         active.status = RoundStatus.finished
         active.finished_at = datetime.now(timezone.utc)
 
-    # Count previous rounds
+    # Count previous rounds for numbering
     prev_count = db.query(Round).filter(Round.room_id == room.id).count()
 
-    animal1_id, animal2_id = _pick_animals(difficulty)
+    # Determine exclusions for allow_repeated=False
+    exclude_ids: list[int] = []
+    if not allow_repeated:
+        recent = (
+            db.query(Round)
+            .filter(Round.room_id == room.id)
+            .order_by(Round.started_at.desc())
+            .limit(10)
+            .all()
+        )
+        for r in recent:
+            exclude_ids.extend([r.player1_animal_id, r.player2_animal_id])
+        exclude_ids = list(set(exclude_ids))
 
+    animal1_id, animal2_id = _pick_animals(difficulty, exclude_ids)
+
+    now = datetime.now(timezone.utc)
     round_ = Round(
         room_id=room.id,
         round_number=prev_count + 1,
@@ -65,11 +120,16 @@ def start_round(
         player2_id=player2_id,
         player1_animal_id=animal1_id,
         player2_animal_id=animal2_id,
-        current_turn_player_id=player1_id,  # Player 1 goes first
+        current_turn_player_id=player1_id,
         status=RoundStatus.active,
         difficulty=difficulty,
         question_count=0,
         guess_count=0,
+        timer_duration=timer_duration,
+        timer_started_at=now if timer_duration else None,
+        max_questions=max_questions,
+        allow_repeated=allow_repeated,
+        reactions_enabled=reactions_enabled,
     )
     db.add(round_)
 
@@ -79,7 +139,7 @@ def start_round(
 
     db.commit()
     db.refresh(round_)
-    # Trigger lazy load for relationships used in serialization
+    # Trigger lazy loads for relationships used in serialization
     _ = round_.player1
     _ = round_.player2
     return round_
@@ -107,6 +167,10 @@ def submit_question(
     ok, msg = can_submit_question(participant, round)
     if not ok:
         raise PermissionError(msg)
+
+    # Enforce max_questions limit
+    if round.max_questions is not None and round.question_count >= round.max_questions:
+        raise PermissionError("تم الوصول إلى الحد الأقصى للأسئلة")
 
     question = Question(
         round_id=round.id,
@@ -170,6 +234,11 @@ def submit_guess(
     if not ok:
         raise PermissionError(msg)
 
+    # Double-check round is still active (guard against race with timer)
+    db.refresh(round)
+    if round.status != RoundStatus.active:
+        raise PermissionError("الجولة انتهت بالفعل")
+
     secret_animal_id = get_secret_animal_id_for_player(participant, round)
     is_correct = (animal_id == secret_animal_id)
 
@@ -187,6 +256,13 @@ def submit_guess(
         round.winner_id = participant.id
         round.finished_at = datetime.now(timezone.utc)
         round.room.status = RoomStatus.waiting
+
+        # Award exactly +1 score — within the same transaction as round.status=finished
+        participant.score = Participant.score + 1
+
+        # Cancel timer if running
+        from app.game.timer import cancel_timer
+        cancel_timer(round.id)
     else:
         # Wrong guess — switch turn
         _switch_turn(round)
@@ -194,7 +270,22 @@ def submit_guess(
     db.commit()
     db.refresh(guess)
     db.refresh(round)
+    db.refresh(participant)
     return guess, is_correct
+
+
+def expire_round(db: Session, round: Round):
+    """Called by the timer task when time runs out. No winner, no points."""
+    if round.status != RoundStatus.active:
+        return  # Already resolved — idempotent guard
+    round.status = RoundStatus.finished
+    round.finished_at = datetime.now(timezone.utc)
+    round.cancelled_reason = "timer_expired"
+
+    room = db.query(Room).filter(Room.id == round.room_id).first()
+    if room:
+        room.status = RoomStatus.waiting
+    db.commit()
 
 
 def log_game_event(db: Session, round_id: uuid.UUID, event_type: str, payload: dict):
@@ -212,33 +303,43 @@ def get_round_questions(db: Session, round_id: uuid.UUID) -> list[Question]:
     )
 
 
-def cancel_round(db: Session, round_id: uuid.UUID):
+def cancel_round(db: Session, round_id: uuid.UUID, reason: str | None = None):
     round_ = db.query(Round).filter(Round.id == round_id).first()
     if round_ and round_.status == RoundStatus.active:
         round_.status = RoundStatus.cancelled
         round_.finished_at = datetime.now(timezone.utc)
+        if reason:
+            round_.cancelled_reason = reason
         room = db.query(Room).filter(Room.id == round_.room_id).first()
         if room:
             room.status = RoomStatus.waiting
+        # Cancel timer too
+        from app.game.timer import cancel_timer
+        cancel_timer(round_.id)
         db.commit()
 
 
 def rematch(db: Session, room: Room, old_round: Round) -> Round:
-    # Same players as old round
+    """Start a new round with the same players as last round."""
     player1_id = old_round.player1_id
     player2_id = old_round.player2_id
-    
-    # Exclude the animals they just had
-    exclude = [old_round.player1_animal_id, old_round.player2_animal_id]
-    
+
+    # Use current room settings
+    settings = get_or_create_settings(db, room.id)
+
+    exclude: list[int] = []
+    if not settings.allow_repeated:
+        exclude = [old_round.player1_animal_id, old_round.player2_animal_id]
+
     active = get_active_round(db, room.id)
     if active:
         active.status = RoundStatus.finished
         active.finished_at = datetime.now(timezone.utc)
 
     prev_count = db.query(Round).filter(Round.room_id == room.id).count()
-    animal1_id, animal2_id = _pick_animals(old_round.difficulty, exclude_ids=exclude)
+    animal1_id, animal2_id = _pick_animals(settings.difficulty, exclude_ids=exclude)
 
+    now = datetime.now(timezone.utc)
     round_ = Round(
         room_id=room.id,
         round_number=prev_count + 1,
@@ -248,9 +349,14 @@ def rematch(db: Session, room: Room, old_round: Round) -> Round:
         player2_animal_id=animal2_id,
         current_turn_player_id=player1_id,
         status=RoundStatus.active,
-        difficulty=old_round.difficulty,
+        difficulty=settings.difficulty,
         question_count=0,
         guess_count=0,
+        timer_duration=settings.timer_duration,
+        timer_started_at=now if settings.timer_duration else None,
+        max_questions=settings.max_questions,
+        allow_repeated=settings.allow_repeated,
+        reactions_enabled=settings.reactions_enabled,
     )
     db.add(round_)
     room.status = RoomStatus.playing
@@ -261,3 +367,17 @@ def rematch(db: Session, room: Room, old_round: Round) -> Round:
     _ = round_.player1
     _ = round_.player2
     return round_
+
+
+def get_scoreboard(db: Session, room_id: uuid.UUID) -> list[dict]:
+    """Return participants sorted by score descending."""
+    participants = (
+        db.query(Participant)
+        .filter(Participant.room_id == room_id, Participant.is_active == True)
+        .order_by(Participant.score.desc())
+        .all()
+    )
+    return [
+        {"participant_id": str(p.id), "display_name": p.display_name, "score": p.score}
+        for p in participants
+    ]

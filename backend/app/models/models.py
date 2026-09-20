@@ -52,6 +52,7 @@ class Room(Base):
 
     participants = relationship("Participant", back_populates="room", cascade="all, delete-orphan")
     rounds = relationship("Round", back_populates="room", cascade="all, delete-orphan")
+    settings = relationship("RoomSettings", back_populates="room", uselist=False, cascade="all, delete-orphan")
 
 
 class Participant(Base):
@@ -64,6 +65,7 @@ class Participant(Base):
     role = Column(SAEnum(ParticipantRole), default=ParticipantRole.audience, nullable=False)
     is_connected = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    score = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -89,6 +91,16 @@ class Round(Base):
     started_at = Column(DateTime(timezone=True), default=utcnow)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Feature v2: timer
+    timer_duration = Column(Integer, nullable=True)       # seconds; NULL = no timer
+    timer_started_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Feature v2: host settings baked into round
+    max_questions = Column(Integer, nullable=True)        # NULL = unlimited
+    allow_repeated = Column(Boolean, default=True, nullable=False)
+    reactions_enabled = Column(Boolean, default=True, nullable=False)
+    cancelled_reason = Column(String(30), nullable=True)  # 'timer_expired' | 'player_left' | None
+
     room = relationship("Room", back_populates="rounds")
     player1 = relationship("Participant", foreign_keys=[player1_id])
     player2 = relationship("Participant", foreign_keys=[player2_id])
@@ -97,6 +109,22 @@ class Round(Base):
     questions = relationship("Question", back_populates="round", cascade="all, delete-orphan")
     guesses = relationship("Guess", back_populates="round", cascade="all, delete-orphan")
     events = relationship("GameEvent", back_populates="round", cascade="all, delete-orphan")
+
+
+class RoomSettings(Base):
+    """Persisted host-configured defaults for a room. Survive between rounds."""
+    __tablename__ = "room_settings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, unique=True)
+    timer_duration = Column(Integer, nullable=True)
+    max_questions = Column(Integer, nullable=True)
+    allow_repeated = Column(Boolean, default=True, nullable=False)
+    reactions_enabled = Column(Boolean, default=True, nullable=False)
+    difficulty = Column(String(20), default="medium", nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    room = relationship("Room", back_populates="settings")
 
 
 class Question(Base):

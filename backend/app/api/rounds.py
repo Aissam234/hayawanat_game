@@ -61,12 +61,21 @@ async def start_round(
     if str(p1.id) == str(p2.id):
         raise HTTPException(status_code=400, detail="يجب اختيار لاعبين مختلفين")
 
-    diff = body.difficulty if body.difficulty in ("easy", "medium", "hard", "random") else "medium"
-    round_ = round_service.start_round(db, room, body.player1_id, body.player2_id, diff)
+    # Read host's persisted settings for this room
+    settings = round_service.get_or_create_settings(db, room.id)
+
+    round_ = round_service.start_round(
+        db, room, body.player1_id, body.player2_id,
+        difficulty=settings.difficulty,
+        timer_duration=settings.timer_duration,
+        max_questions=settings.max_questions,
+        allow_repeated=settings.allow_repeated,
+        reactions_enabled=settings.reactions_enabled,
+    )
 
     # Refresh relationships for serialization
     db.refresh(round_)
-    round_.player1  # trigger lazy load
+    round_.player1
     round_.player2
 
     all_participants = db.query(Participant).filter(
@@ -75,6 +84,21 @@ async def start_round(
 
     # Broadcast with role-aware serialization
     await manager.broadcast_round_started(room_code.upper(), round_, all_participants)
+
+    # Start server-side timer if configured
+    if round_.timer_duration:
+        from app.game.timer import register_timer
+        register_timer(round_.id, round_.timer_duration, room_code.upper())
+
+        # Also broadcast timer_started event so clients get the authoritative end time
+        await manager.broadcast_to_room(room_code.upper(), {
+            "type": "timer_started",
+            "data": {
+                "duration_seconds": round_.timer_duration,
+                "ends_at": round_.timer_started_at.timestamp() * 1000 + round_.timer_duration * 1000
+                if round_.timer_started_at else None,
+            }
+        })
 
     return {"message": "بدأت الجولة", "round_id": str(round_.id)}
 

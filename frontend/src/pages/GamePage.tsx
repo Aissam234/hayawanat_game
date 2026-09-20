@@ -4,12 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { api } from '../services/api'
 import { loadSession } from '../utils/session'
-import { Animal, Question, Difficulty } from '../types/game'
+import { Animal, Question } from '../types/game'
 import QuestionHistory from '../components/game/QuestionHistory'
 import AnimalSelector from '../components/game/AnimalSelector'
 import VictoryScreen from '../components/game/VictoryScreen'
+import RoundTimer from '../components/game/RoundTimer'
+import ReactionBar from '../components/game/ReactionBar'
+import Scoreboard from '../components/game/Scoreboard'
 import ConnectionStatus from '../components/shared/ConnectionStatus'
-import { Send, Target, Eye, Ban, RotateCcw } from 'lucide-react'
+import { Send, Target, Eye, Ban } from 'lucide-react'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { toast } from '../store/toastStore'
 
@@ -19,6 +22,7 @@ export default function GamePage() {
   const {
     guestUuid, participantId, participants, round, questions,
     roundFinished, animals, isConnected, pendingQuestionId,
+    settings, scoreboard, timerEndsAt,
     setSession, setRoom, setParticipants, setRound, setQuestions, setAnimals,
     connectWs, setRoundFinished,
   } = useGameStore()
@@ -28,10 +32,9 @@ export default function GamePage() {
   const [error, setError] = useState('')
   const [showAnimalSelector, setShowAnimalSelector] = useState(false)
   const [lastWrongGuess, setLastWrongGuess] = useState<{ name: string; animal: Animal } | null>(null)
-  const [showNewRoundModal, setShowNewRoundModal] = useState(false)
   const [modalState, setModalState] = useState<{
     isOpen: boolean
-    type: 'cancel' | 'rematch' | null
+    type: 'cancel' | null
   }>({ isOpen: false, type: null })
   const historyEndRef = useRef<HTMLDivElement>(null)
 
@@ -45,6 +48,10 @@ export default function GamePage() {
   const pendingQuestion = questions.find(q => q.id === pendingQuestionId)
   const amAnswerer = pendingQuestion && pendingQuestion.asker_id !== participantId &&
     (round?.player1_id === participantId || round?.player2_id === participantId)
+
+  // Audience/host can react; active players cannot
+  const canReact = !isPlayer && (!!myParticipant)
+  const reactionsEnabled = round?.reactions_enabled ?? settings.reactions_enabled
 
   // Init
   useEffect(() => {
@@ -81,14 +88,6 @@ export default function GamePage() {
       }
     }
     init()
-  }, [])
-
-  // Track wrong guesses from WS
-  useEffect(() => {
-    const unsub = useGameStore.subscribe((state, prev) => {
-      // Detect wrong_guess via turn change
-    })
-    return unsub
   }, [])
 
   // Auto-scroll question history
@@ -137,7 +136,6 @@ export default function GamePage() {
   const handleNewRound = async () => {
     try {
       await api.rematch(roomCode!, guestUuid)
-      // The ws event 'round_started' will reset state
     } catch (e: any) {
       toast.error(e.message || 'فشل في بدء الجولة الجديدة')
     }
@@ -146,27 +144,6 @@ export default function GamePage() {
   const handleBackToLobby = () => {
     setRoundFinished(null)
     navigate(`/lobby/${roomCode}`)
-  }
-
-  const getModalProps = () => {
-    if (modalState.type === 'cancel') {
-      return {
-        title: 'إلغاء الجولة',
-        message: 'هل تريد حقاً إلغاء الجولة الحالية؟',
-        confirmText: 'إلغاء الجولة',
-        isDestructive: true,
-        onConfirm: async () => {
-          try {
-            await api.cancelRound(roomCode!, guestUuid)
-            setModalState({ isOpen: false, type: null })
-          } catch (e: any) {
-            toast.error(e.message)
-            setModalState({ isOpen: false, type: null })
-          }
-        }
-      }
-    }
-    return { title: '', message: '', onConfirm: () => {} }
   }
 
   if (!round && !roundFinished) {
@@ -183,10 +160,22 @@ export default function GamePage() {
   return (
     <div className="min-h-screen bg-animated bg-dots pb-8">
       <ConnectionStatus isConnected={isConnected} />
-      
+
       <ConfirmModal
         isOpen={modalState.isOpen}
-        {...getModalProps()}
+        title="إلغاء الجولة"
+        message="هل تريد حقاً إلغاء الجولة الحالية؟"
+        confirmText="إلغاء الجولة"
+        isDestructive={true}
+        onConfirm={async () => {
+          try {
+            await api.cancelRound(roomCode!, guestUuid)
+            setModalState({ isOpen: false, type: null })
+          } catch (e: any) {
+            toast.error(e.message)
+            setModalState({ isOpen: false, type: null })
+          }
+        }}
         onCancel={() => setModalState({ isOpen: false, type: null })}
       />
 
@@ -210,11 +199,17 @@ export default function GamePage() {
         />
       )}
 
+      {/* Floating reactions overlay */}
+      <ReactionBar
+        enabled={reactionsEnabled ?? true}
+        canReact={canReact}
+      />
+
       <div className="max-w-lg mx-auto p-4 space-y-4">
         {/* Header Actions */}
         {isHost && !roundFinished && (
           <div className="flex justify-end pt-2">
-            <button 
+            <button
               onClick={() => setModalState({ isOpen: true, type: 'cancel' })}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/50 rounded-xl transition-colors"
             >
@@ -224,19 +219,25 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Header */}
+        {/* Header + Timer row */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center pt-2"
+          className="flex items-center justify-between pt-2"
         >
-          <div className="flex items-center justify-center gap-2 text-sm text-game-text-muted">
+          <div className="text-center flex-1 text-sm text-game-text-muted">
             <span>🐾 لعبة الحيوانات</span>
-            <span>·</span>
+            <span className="mx-1">·</span>
             <span>غرفة {roomCode}</span>
-            <span>·</span>
+            <span className="mx-1">·</span>
             <span>جولة {round?.round_number}</span>
           </div>
+
+          {/* Timer widget */}
+          <RoundTimer
+            timerEndsAt={timerEndsAt}
+            durationSeconds={round?.timer_duration ?? null}
+          />
         </motion.div>
 
         {/* My opponent's animal — role-aware */}
@@ -274,6 +275,20 @@ export default function GamePage() {
             </div>
           )}
         </motion.div>
+
+        {/* Max questions progress */}
+        {round?.max_questions && (
+          <div className="flex items-center gap-2 text-xs text-game-text-muted px-1">
+            <span>الأسئلة:</span>
+            <div className="flex-1 bg-white/10 rounded-full h-1.5">
+              <div
+                className="bg-indigo-500 h-1.5 rounded-full transition-all"
+                style={{ width: `${Math.min(100, (round.question_count / round.max_questions) * 100)}%` }}
+              />
+            </div>
+            <span>{round.question_count}/{round.max_questions}</span>
+          </div>
+        )}
 
         {/* Turn indicator */}
         <AnimatePresence mode="wait">
@@ -313,7 +328,7 @@ export default function GamePage() {
           )}
         </AnimatePresence>
 
-        {/* Answer buttons — for the opponent when there's a pending question */}
+        {/* Answer buttons */}
         <AnimatePresence>
           {amAnswerer && pendingQuestion && (
             <motion.div
@@ -325,39 +340,28 @@ export default function GamePage() {
               <p className="text-sm text-amber-300 mb-1">سؤال خصمك:</p>
               <p className="text-game-text font-semibold mb-4">"{pendingQuestion.question_text}"</p>
               <div className="grid grid-cols-3 gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  disabled={submitting}
-                  onClick={() => handleAnswer('yes')}
-                  className="py-4 rounded-xl bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 font-bold text-lg hover:bg-emerald-500/30 transition-all disabled:opacity-50"
-                >
-                  ✅ نعم
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  disabled={submitting}
-                  onClick={() => handleAnswer('no')}
-                  className="py-4 rounded-xl bg-red-500/20 border border-red-500/60 text-red-300 font-bold text-lg hover:bg-red-500/30 transition-all disabled:opacity-50"
-                >
-                  ❌ لا
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  disabled={submitting}
-                  onClick={() => handleAnswer('invalid')}
-                  className="py-4 rounded-xl bg-amber-500/20 border border-amber-500/60 text-amber-300 font-bold text-base hover:bg-amber-500/30 transition-all disabled:opacity-50"
-                >
-                  🚫 غير صالح
-                </motion.button>
+                {(['yes', 'no', 'invalid'] as const).map((ans) => (
+                  <motion.button
+                    key={ans}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    disabled={submitting}
+                    onClick={() => handleAnswer(ans)}
+                    className={`py-4 rounded-xl font-bold text-lg transition-all disabled:opacity-50 border ${
+                      ans === 'yes' ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/30' :
+                      ans === 'no' ? 'bg-red-500/20 border-red-500/60 text-red-300 hover:bg-red-500/30' :
+                      'bg-amber-500/20 border-amber-500/60 text-amber-300 hover:bg-amber-500/30 text-base'
+                    }`}
+                  >
+                    {ans === 'yes' ? '✅ نعم' : ans === 'no' ? '❌ لا' : '🚫 غير صالح'}
+                  </motion.button>
+                ))}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Question input — my turn as player */}
+        {/* Question input */}
         <AnimatePresence>
           {isMyTurn && isPlayer && !pendingQuestion && (
             <motion.div
@@ -367,23 +371,20 @@ export default function GamePage() {
               className="glass rounded-2xl p-5 border border-indigo-500/40 space-y-3"
             >
               <label className="text-sm text-game-text-muted">اطرح سؤالاً يُجاب بنعم أو لا:</label>
-              <div className="relative">
-                <textarea
-                  value={questionText}
-                  onChange={e => setQuestionText(e.target.value)}
-                  placeholder="هل حيواني يعيش في الماء؟"
-                  maxLength={200}
-                  rows={2}
-                  className="w-full bg-game-surface border border-game-border rounded-xl py-3 px-4 text-game-text placeholder-game-text-muted focus:border-game-primary transition-colors resize-none text-sm"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmitQuestion()
-                    }
-                  }}
-                />
-              </div>
-
+              <textarea
+                value={questionText}
+                onChange={e => setQuestionText(e.target.value)}
+                placeholder="هل حيواني يعيش في الماء؟"
+                maxLength={200}
+                rows={2}
+                className="w-full bg-game-surface border border-game-border rounded-xl py-3 px-4 text-game-text placeholder-game-text-muted focus:border-game-primary transition-colors resize-none text-sm"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmitQuestion()
+                  }
+                }}
+              />
               <div className="flex gap-2">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -395,25 +396,25 @@ export default function GamePage() {
                   <Send size={16} />
                   إرسال السؤال
                 </motion.button>
-
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setShowAnimalSelector(true)}
                   className="px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-l from-amber-500 to-orange-500 flex items-center gap-2 transition-all"
-                  title="أعتقد أنني عرفت الحيوان"
                 >
                   <Target size={16} />
                   <span className="text-sm">تخمين</span>
                 </motion.button>
               </div>
-
-              {error && (
-                <p className="text-red-400 text-sm">{error}</p>
-              )}
+              {error && <p className="text-red-400 text-sm">{error}</p>}
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Compact scoreboard for audience/host */}
+        {!isPlayer && scoreboard.length > 0 && (
+          <Scoreboard scoreboard={scoreboard} myId={participantId} compact />
+        )}
 
         {/* Question history */}
         <motion.div

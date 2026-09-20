@@ -57,6 +57,12 @@ async def submit_guess(
         round_.winner
 
         finished_data = serialize_round_finished(round_)
+        finished_data["end_reason"] = "guess"
+
+        # Build scoreboard
+        from app.services.round_service import get_scoreboard
+        finished_data["scoreboard"] = get_scoreboard(db, room.id)
+
         await manager.broadcast_to_room(room_code.upper(), {
             "type": "round_finished",
             "data": finished_data,
