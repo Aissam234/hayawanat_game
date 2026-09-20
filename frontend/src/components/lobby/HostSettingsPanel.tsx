@@ -35,26 +35,17 @@ const maxQOptions: { value: number | null; label: string }[] = [
 ]
 
 export default function HostSettingsPanel({ roomCode, guestUuid, settings, onSettingsChange }: Props) {
-  const [saving, setSaving] = useState(false)
-
   const save = useCallback(async (patch: Partial<GameSettings>) => {
-    const next = { ...settings, ...patch } as GameSettings
-    onSettingsChange(next)
-    setSaving(true)
+    // Pass only the patch to the store, which will merge it with latest state
+    onSettingsChange(patch as GameSettings)
+    // We don't block the UI with setSaving anymore to keep it responsive during rapid clicks
     try {
-      await api.updateSettings(roomCode, {
-        difficulty: next.difficulty,
-        timer_duration: next.timer_duration,
-        max_questions: next.max_questions,
-        allow_repeated: next.allow_repeated,
-        reactions_enabled: next.reactions_enabled,
-      }, guestUuid)
+      // Send only the patched fields to the server
+      await api.updateSettings(roomCode, patch, guestUuid)
     } catch (e: any) {
       toast.error(e.message || 'فشل في حفظ الإعدادات')
-    } finally {
-      setSaving(false)
     }
-  }, [settings, roomCode, guestUuid, onSettingsChange])
+  }, [roomCode, guestUuid, onSettingsChange])
 
   return (
     <motion.div
@@ -64,7 +55,6 @@ export default function HostSettingsPanel({ roomCode, guestUuid, settings, onSet
     >
       <h2 className="text-base font-bold text-game-text flex items-center gap-2">
         <span>⚙️</span> إعدادات الجولة
-        {saving && <span className="text-xs text-game-text-muted animate-pulse mr-auto">جاري الحفظ…</span>}
       </h2>
 
       {/* Difficulty */}

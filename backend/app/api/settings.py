@@ -46,17 +46,19 @@ async def update_game_settings(
         raise HTTPException(status_code=400, detail="لا يمكن تغيير الإعدادات أثناء جولة نشطة")
 
     # Build update kwargs — only include keys that were actually sent
-    timer_val = body.timer_duration if body.timer_duration is not None else ...
-    max_q_val = body.max_questions if body.max_questions is not None else ...
+    update_data = body.model_dump(exclude_unset=True)
+    
+    timer_val = update_data["timer_duration"] if "timer_duration" in update_data else ...
+    max_q_val = update_data["max_questions"] if "max_questions" in update_data else ...
 
     settings = round_service.update_room_settings(
         db,
         room.id,
-        difficulty=body.difficulty,
+        difficulty=update_data.get("difficulty"),
         timer_duration=timer_val,
         max_questions=max_q_val,
-        allow_repeated=body.allow_repeated,
-        reactions_enabled=body.reactions_enabled,
+        allow_repeated=update_data.get("allow_repeated"),
+        reactions_enabled=update_data.get("reactions_enabled"),
     )
 
     out = {
