@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AUDIO_MIME_TYPES, MAX_AUDIO_BYTES, MAX_RECORDING_MS, audioToBase64 } from '../../services/voiceAudio'
 import { GameWebSocket } from '../../services/websocket'
+import MicrophoneLevelIndicator from './MicrophoneLevelIndicator'
 
 type Phase = 'idle' | 'recording' | 'preview' | 'sending' | 'sent'
 interface Props { roundId: string; enabled: boolean; deadline: number | null; ws: GameWebSocket | null }
@@ -163,6 +164,7 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
     {phase === 'recording' && <div className="space-y-3 text-center">
       <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="text-red-400">🔴 جارٍ التسجيل</motion.div>
       <p className="text-3xl font-mono tabular-nums text-game-text" dir="ltr" aria-label="مدة التسجيل">00:{String(elapsed).padStart(2, '0')} / 00:12</p>
+      <MicrophoneLevelIndicator stream={stream.current} />
       <button className={`${button} w-full bg-red-500/20 text-red-300 border border-red-500/50`} onClick={() => stopRecording.current()}>⏹ إيقاف التسجيل</button>
     </div>}
     {(phase === 'preview' || phase === 'sending') && <>
