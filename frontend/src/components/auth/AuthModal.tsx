@@ -1,78 +1,109 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { authApi } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useGameStore } from '../../store/gameStore'
+import { toast } from '../../store/toastStore'
+import { LogIn, UserPlus } from 'lucide-react'
 import { clearSession } from '../../utils/session'
 
-interface GoogleIdentity {
-  initialize: (options: { client_id: string; callback: (response: { credential: string }) => void; auto_select: boolean }) => void
-  renderButton: (element: HTMLElement, options: { type: string; theme: string; size: string; width: number; locale: string; text: string }) => void
-}
-declare global { interface Window { google?: { accounts: { id: GoogleIdentity } } } }
-let loadingScript: Promise<void> | undefined
-function loadGoogle() {
-  if (window.google?.accounts.id) return Promise.resolve()
-  if (!loadingScript) loadingScript = new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => { script.remove(); loadingScript = undefined; reject(new Error('تعذّر تحميل Google؛ تحقق من الاتصال أو تابع كضيف')) }
-    document.head.appendChild(script)
-  })
-  return loadingScript
-}
+export default function AuthModal({ onClose }: { onClose?: () => void }) {
+  const [isLogin, setIsLogin] = useState(true)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const { setAuth } = useAuthStore()
+  const { setSession, guestUuid } = useGameStore()
 
-export default function AuthModal({ onClose }: { onClose: () => void }) {
-  const button = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    let disposed = false
-    let sending = false
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    if (!clientId) { setError('تسجيل الدخول عبر Google غير جاهز حالياً؛ يمكنك اللعب كضيف'); return }
-    loadGoogle().then(() => {
-      if (disposed || !button.current || !window.google) return
-      window.google.accounts.id.initialize({ client_id: clientId, auto_select: false, callback: async response => {
-        if (disposed || sending) return
-        sending = true; setBusy(true); setError('')
-        try {
-          const result = await authApi.google(response.credential)
-          if (disposed) return
-          // A different account never inherits the previous guest's room secret.
-          useGameStore.getState().reset()
-          clearSession()
-          localStorage.setItem('hayawanat_guest_uuid', crypto.randomUUID())
-          useAuthStore.getState().setAuth(result.access_token, result.user)
-          onClose()
-        } catch (err) {
-          if (!disposed) setError(err instanceof Error ? err.message : 'تعذّر تسجيل الدخول')
-        } finally {
-          sending = false
-          if (!disposed) setBusy(false)
-        }
-      } })
-      window.google.accounts.id.renderButton(button.current, { type: 'standard', theme: 'filled_black', size: 'large',
-        width: Math.min(300, button.current.clientWidth || 280), locale: 'ar', text: 'signin_with' })
-      setReady(true)
-    }).catch(err => { if (!disposed) setError(err.message) })
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('keydown', escape)
-    return () => { disposed = true; document.removeEventListener('keydown', escape) }
-  }, [onClose])
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!username || !password) return toast.error('يرجى ملء جميع الحقول')
 
-  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-game-bg/90 backdrop-blur-sm" dir="rtl">
-    <section role="dialog" aria-modal="true" aria-labelledby="auth-title" className="w-full max-w-sm glass rounded-3xl p-6 border border-game-border text-center space-y-5">
-      <div className="text-4xl">🐾</div>
-      <h2 id="auth-title" className="text-xl font-black text-game-text">احفظ نقاطك مع حسابك</h2>
-      <p className="text-sm text-game-text-muted">سجّل الدخول عبر Google للاحتفاظ بانتصاراتك بين الغرف والأجهزة. يمكنك أيضاً اللعب كضيف.</p>
-      <div ref={button} className={`flex justify-center min-h-11 ${busy ? 'pointer-events-none opacity-50' : ''}`} />
-      {(!ready || busy) && !error && <p role="status" className="text-sm text-game-text-muted">{busy ? 'جارٍ تسجيل الدخول…' : 'جارٍ تحميل Google…'}</p>}
-      {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <button autoFocus onClick={onClose} className="min-h-12 w-full rounded-xl border border-game-border text-game-text font-bold">المتابعة كضيف</button>
-      <p className="text-xs text-game-text-muted">نقاط الضيف تخص الغرفة الحالية فقط؛ النقاط السابقة لا تُنقل إلى الحساب.</p>
-    </section>
-  </div>
+    setLoading(true)
+    try {
+      const res = isLogin
+        ? await authApi.login({ username, password })
+        : await authApi.register({ username, password })
+
+      useGameStore.getState().reset()
+      clearSession()
+      localStorage.setItem('hayawanat_guest_uuid', crypto.randomUUID())
+      
+      setAuth(res.access_token, res.user)
+      setSession({
+        guestUuid: localStorage.getItem('hayawanat_guest_uuid') || crypto.randomUUID(),
+        displayName: res.user.username,
+      })
+      toast.success(isLogin ? 'تم تسجيل الدخول بنجاح!' : 'تم إنشاء الحساب بنجاح!')
+      if (onClose) onClose()
+    } catch (e: any) {
+      toast.error(e.message || 'حدث خطأ')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-game-bg/90 backdrop-blur-sm" dir="rtl">
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-sm glass rounded-3xl p-6 border border-game-border relative overflow-hidden shadow-2xl"
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-game-primary/10 to-transparent pointer-events-none" />
+        
+        <div className="relative text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-game-surface border border-game-border shadow-inner mb-4">
+            <span className="text-3xl">🦁</span>
+          </div>
+          <h2 className="text-2xl font-black text-game-text">حيوانات</h2>
+          <p className="text-game-text-muted mt-1 text-sm">يجب تسجيل الدخول للعب وحفظ نقاطك</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="relative space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-game-text mb-1">اسم المستخدم</label>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              className="w-full bg-game-surface border border-game-border rounded-xl px-4 py-3 text-game-text focus:outline-none focus:border-game-primary transition-colors text-left"
+              dir="ltr"
+              placeholder="Username"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-game-text mb-1">كلمة المرور</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-game-surface border border-game-border rounded-xl px-4 py-3 text-game-text focus:outline-none focus:border-game-primary transition-colors text-left"
+              dir="ltr"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 mt-2 rounded-xl font-bold text-white bg-gradient-to-l from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 transition-all shadow-lg flex items-center justify-center gap-2"
+          >
+            {isLogin ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+            {loading ? 'انتظر...' : isLogin ? 'دخول' : 'حساب جديد'}
+          </button>
+        </form>
+
+        <div className="relative mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-sm text-game-primary hover:text-game-primary/80 font-semibold transition-colors"
+          >
+            {isLogin ? 'لا تملك حساباً؟ سجل الآن' : 'لديك حساب؟ سجل الدخول'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
 }

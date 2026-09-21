@@ -78,20 +78,15 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-animated bg-dots flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {showAuth && <AuthModal onClose={closeAuth} />}
-      {!user && <button onClick={() => setShowAuth(true)} className="absolute top-4 right-4 min-h-12 glass px-4 rounded-xl border border-game-border text-game-text z-10">
-        تسجيل الدخول لحفظ نقاطك
-      </button>}
-      {/* Profile Badge */}
       {user && (
-        <div className="absolute top-4 right-4 glass px-4 py-2 rounded-2xl flex items-center gap-4 z-10 border border-game-border">
+        <div className="absolute top-4 right-4 glass px-4 py-2 rounded-2xl border border-game-border flex items-center gap-3 z-10">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-game-primary/20 flex items-center justify-center text-game-primary font-bold">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
               {(user.display_name || user.username).charAt(0).toUpperCase()}
             </div>
             <div className="text-right">
               <div className="text-sm font-bold text-game-text">{user.display_name || user.username}</div>
-              <div className="text-xs text-game-text-muted">🏆 {user.total_score} نقطة</div>
+              <div className="text-xs text-game-text-muted">🐾 {user.total_score} نقاط</div>
             </div>
           </div>
           <button onClick={logout} className="p-2 text-game-text-muted hover:text-red-400 transition-colors" title="تسجيل الخروج">

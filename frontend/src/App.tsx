@@ -7,6 +7,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { useGameStore } from './store/gameStore'
 import { useAuthStore } from './store/authStore'
 import { authApi, ApiError } from './services/api'
+import AuthModal from './components/auth/AuthModal'
 
 export default function App() {
   const { token, setAuth, logout } = useAuthStore()
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastContainer />
+      {!token && <AuthModal />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/lobby/:roomCode" element={<LobbyPage />} />
