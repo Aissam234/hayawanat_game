@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import QuestionAudio from './QuestionAudio'
 import { Question as QuestionType } from '../../types/game'
 
 interface Props {
@@ -14,7 +15,7 @@ const answerDisplay: Record<string, { label: string; color: string; icon: string
 }
 
 export default function QuestionHistory({ questions, myId }: Props) {
-  const validQuestions = questions.filter(q => q.is_valid || q.answer === 'pending')
+  const validQuestions = questions
 
   if (validQuestions.length === 0) {
     return (
@@ -58,7 +59,7 @@ export default function QuestionHistory({ questions, myId }: Props) {
                 >
                   {q.asker_name}
                 </div>
-                <p className="text-sm text-game-text leading-relaxed">{q.question_text}</p>
+                {q.question_type === 'audio' ? <QuestionAudio question={q} /> : <p className="text-sm text-game-text leading-relaxed">{q.question_text}</p>}
               </div>
 
               {/* Answer */}

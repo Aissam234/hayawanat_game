@@ -6,6 +6,9 @@ import { api } from '../services/api'
 import { loadSession } from '../utils/session'
 import { Animal, Question } from '../types/game'
 import QuestionHistory from '../components/game/QuestionHistory'
+import VoiceQuestionRecorder from '../components/game/VoiceQuestionRecorder'
+import QuestionAudio from '../components/game/QuestionAudio'
+import { clearVoiceAudio } from '../services/voiceAudio'
 import AnimalSelector from '../components/game/AnimalSelector'
 import VictoryScreen from '../components/game/VictoryScreen'
 import RoundTimer from '../components/game/RoundTimer'
@@ -22,11 +25,13 @@ export default function GamePage() {
   const {
     guestUuid, participantId, participants, round, questions,
     roundFinished, animals, isConnected, pendingQuestionId,
-    settings, scoreboard, timerEndsAt,
+    settings, scoreboard, timerEndsAt, ws,
     setSession, setRoom, setParticipants, setRound, setQuestions, setAnimals,
     connectWs, setRoundFinished,
   } = useGameStore()
 
+  const [questionMode, setQuestionMode] = useState<'text' | 'voice'>('text')
+  const [deadlinePassed, setDeadlinePassed] = useState(false)
   const [questionText, setQuestionText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -37,6 +42,7 @@ export default function GamePage() {
     type: 'cancel' | null
   }>({ isOpen: false, type: null })
   const historyEndRef = useRef<HTMLDivElement>(null)
+  useEffect(() => () => clearVoiceAudio(), [])
 
   // Derived state
   const myParticipant = participants.find(p => p.id === participantId)
@@ -48,6 +54,14 @@ export default function GamePage() {
   const pendingQuestion = questions.find(q => q.id === pendingQuestionId)
   const amAnswerer = pendingQuestion && pendingQuestion.asker_id !== participantId &&
     (round?.player1_id === participantId || round?.player2_id === participantId)
+
+  useEffect(() => {
+    setDeadlinePassed(!!timerEndsAt && Date.now() >= timerEndsAt)
+    if (!timerEndsAt) return
+    const timer = setTimeout(() => setDeadlinePassed(true), Math.max(0, timerEndsAt - Date.now()))
+    return () => clearTimeout(timer)
+  }, [timerEndsAt])
+  useEffect(() => { setQuestionMode('text'); setError('') }, [round?.id])
 
   // Audience/host can react; active players cannot
   const canReact = !isPlayer && (!!myParticipant)
@@ -338,7 +352,7 @@ export default function GamePage() {
               className="glass rounded-2xl p-5 border border-amber-500/40 bg-amber-500/5"
             >
               <p className="text-sm text-amber-300 mb-1">سؤال خصمك:</p>
-              <p className="text-game-text font-semibold mb-4">"{pendingQuestion.question_text}"</p>
+              {pendingQuestion.question_type === 'audio' ? <div className="mb-4"><QuestionAudio question={pendingQuestion} /></div> : <p className="text-game-text font-semibold mb-4">"{pendingQuestion.question_text}"</p>}
               <div className="grid grid-cols-3 gap-2">
                 {(['yes', 'no', 'invalid'] as const).map((ans) => (
                   <motion.button
@@ -362,14 +376,22 @@ export default function GamePage() {
         </AnimatePresence>
 
         {/* Question input */}
-        <AnimatePresence>
-          {isMyTurn && isPlayer && !pendingQuestion && (
+          {isMyTurn && isPlayer && !pendingQuestion && round?.status === 'active' && !roundFinished && !deadlinePassed && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               className="glass rounded-2xl p-5 border border-indigo-500/40 space-y-3"
             >
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="نوع السؤال">
+                {(['text', 'voice'] as const).map(mode => <button key={mode} type="button" aria-pressed={questionMode === mode}
+                  onClick={() => setQuestionMode(mode)} disabled={submitting}
+                  className={`min-h-12 rounded-xl text-sm font-bold border ${questionMode === mode ? 'bg-indigo-500/20 border-indigo-400 text-indigo-200' : 'border-game-border text-game-text-muted'}`}>
+                  {mode === 'text' ? '✍️ سؤال كتابي' : '🎤 سؤال صوتي'}
+                </button>)}
+              </div>
+              {questionMode === 'voice' ? <VoiceQuestionRecorder key={round!.id} roundId={round!.id}
+                enabled={isConnected && isMyTurn && isPlayer && !pendingQuestion && !deadlinePassed && (!round?.max_questions || round.question_count < round.max_questions)} deadline={timerEndsAt} ws={ws} /> : <>
               <label className="text-sm text-game-text-muted">اطرح سؤالاً يُجاب بنعم أو لا:</label>
               <textarea
                 value={questionText}
@@ -406,10 +428,12 @@ export default function GamePage() {
                   <span className="text-sm">تخمين</span>
                 </motion.button>
               </div>
+              </>}
+              {questionMode === 'voice' && <button className="min-h-12 w-full rounded-xl bg-amber-500/20 text-amber-300 font-bold"
+                onClick={() => { setQuestionMode('text'); setShowAnimalSelector(true) }}>🎯 تخمين الحيوان</button>}
               {error && <p className="text-red-400 text-sm">{error}</p>}
             </motion.div>
           )}
-        </AnimatePresence>
 
         {/* Compact scoreboard for audience/host */}
         {!isPlayer && scoreboard.length > 0 && (

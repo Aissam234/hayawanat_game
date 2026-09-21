@@ -79,3 +79,18 @@ def serialize_round_finished(round: Round) -> dict:
         # end_reason: 'guess' | 'timer_expired' | 'cancelled'
         "end_reason": round.cancelled_reason if round.cancelled_reason else "guess",
     }
+
+
+def serialize_question(question) -> dict:
+    """Public metadata only; audio never enters the database or state snapshot."""
+    return {
+        "id": str(question.id),
+        "asker_id": str(question.asker_id),
+        "asker_name": question.asker.display_name if question.asker else "",
+        "question_text": question.question_text,
+        "question_type": question.question_type,
+        "audio_duration_ms": question.audio_duration_ms,
+        "answer": question.answer.value,
+        "is_valid": question.is_valid,
+        "created_at": question.created_at.isoformat(),
+    }

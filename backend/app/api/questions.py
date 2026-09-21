@@ -9,6 +9,7 @@ from app.schemas.schemas import SubmitQuestionRequest, AnswerQuestionRequest
 from app.services import round_service, room_service
 from app.models.models import Participant, Question, QuestionAnswer
 from app.websocket.manager import manager
+from app.websocket.serializers import serialize_question
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -24,6 +25,7 @@ def _get_participant_and_round(db: Session, room_code: str, guest_uuid_str: str)
     participant = db.query(Participant).filter(
         Participant.room_id == room.id,
         Participant.guest_uuid == guest_id,
+        Participant.is_active == True,
     ).first()
     if not participant:
         raise HTTPException(status_code=403, detail="لست عضواً في هذه الغرفة")
@@ -46,16 +48,10 @@ async def submit_question(
         question = round_service.submit_question(db, round_, participant, body.question_text)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    q_data = {
-        "id": str(question.id),
-        "asker_id": str(question.asker_id),
-        "asker_name": participant.display_name,
-        "question_text": question.question_text,
-        "answer": question.answer.value,
-        "is_valid": question.is_valid,
-        "created_at": question.created_at.isoformat(),
-    }
+    q_data = serialize_question(question)
 
     # Broadcast question to all in room
     await manager.broadcast_to_room(room_code.upper(), {
@@ -113,6 +109,7 @@ async def answer_question(
         "type": "answer_submitted",
         "data": {
             **answer_data,
+            "question_count": round_.question_count,
             "current_turn_player_id": str(round_.current_turn_player_id) if round_.current_turn_player_id else None,
         }
     })

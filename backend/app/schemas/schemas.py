@@ -98,7 +98,9 @@ class QuestionOut(BaseModel):
     id: uuid.UUID
     asker_id: uuid.UUID
     asker_name: str
-    question_text: str
+    question_text: Optional[str]
+    question_type: str = "text"
+    audio_duration_ms: Optional[int] = None
     answer: str
     is_valid: bool
     created_at: datetime

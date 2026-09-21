@@ -82,7 +82,9 @@ export interface Question {
   id: string
   asker_id: string
   asker_name: string
-  question_text: string
+  question_text: string | null
+  question_type: 'text' | 'audio'
+  audio_duration_ms: number | null
   answer: QuestionAnswer
   is_valid: boolean
   created_at: string
@@ -126,6 +128,8 @@ export interface GuestSession {
 // === WebSocket Events ===
 export type WsEventType =
   | 'state_sync'
+  | 'voice_question_accepted'
+  | 'voice_question_error'
   | 'participant_joined'
   | 'participant_left'
   | 'participant_connected'

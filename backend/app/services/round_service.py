@@ -158,26 +158,43 @@ def _update_player_roles(
     db.flush()
 
 
+def _lock_action(db: Session, round: Round, participant: Participant):
+    # One row lock shared by text/audio/answer/guess prevents competing actions.
+    db.refresh(round, with_for_update=True)
+    db.refresh(participant)
+    if not participant.is_active or participant.room_id != round.room_id:
+        raise PermissionError("لست عضواً نشطاً في الغرفة")
+    if round.status != RoundStatus.active:
+        raise PermissionError("الجولة انتهت بالفعل")
+    if round.timer_duration and round.timer_started_at:
+        if datetime.now(timezone.utc).timestamp() >= round.timer_started_at.timestamp() + round.timer_duration:
+            raise PermissionError("انتهى وقت الجولة")
+
+
 def submit_question(
-    db: Session,
-    round: Round,
-    participant: Participant,
-    question_text: str,
+    db: Session, round: Round, participant: Participant, question_text: str | None,
+    *, question_type: str = "text", audio_duration_ms: int | None = None,
+    client_request_id: uuid.UUID | None = None,
 ) -> Question:
+    _lock_action(db, round, participant)
     ok, msg = can_submit_question(participant, round)
     if not ok:
         raise PermissionError(msg)
-
-    # Enforce max_questions limit
+    if db.query(Question).filter(Question.round_id == round.id, Question.answer == QuestionAnswer.pending).first():
+        raise PermissionError("انتظر الإجابة على السؤال الحالي")
     if round.max_questions is not None and round.question_count >= round.max_questions:
         raise PermissionError("تم الوصول إلى الحد الأقصى للأسئلة")
-
+    if question_type == "text":
+        if not isinstance(question_text, str) or not 1 <= len(question_text.strip()) <= 300:
+            raise ValueError("اكتب سؤالاً بين حرف و300 حرف")
+        question_text = question_text.strip()
+        audio_duration_ms = None
+    elif question_type != "audio" or question_text is not None or type(audio_duration_ms) is not int or not 1 <= audio_duration_ms <= 12000:
+        raise ValueError("بيانات السؤال غير صالحة")
     question = Question(
-        round_id=round.id,
-        asker_id=participant.id,
-        question_text=question_text,
-        answer=QuestionAnswer.pending,
-        is_valid=True,
+        round_id=round.id, asker_id=participant.id, question_text=question_text,
+        question_type=question_type, audio_duration_ms=audio_duration_ms,
+        client_request_id=client_request_id, answer=QuestionAnswer.pending, is_valid=True,
     )
     db.add(question)
     db.commit()
@@ -192,6 +209,10 @@ def answer_question(
     question: Question,
     answer: str,
 ) -> Question:
+    _lock_action(db, round, participant)
+    db.refresh(question)
+    if question.round_id != round.id or question.answer != QuestionAnswer.pending:
+        raise ValueError("تمت الإجابة أو السؤال لا ينتمي للجولة")
     ok, msg = can_answer_question(participant, round, question.asker_id)
     if not ok:
         raise PermissionError(msg)
@@ -230,6 +251,9 @@ def submit_guess(
     participant: Participant,
     animal_id: int,
 ) -> tuple[Guess, bool]:
+    _lock_action(db, round, participant)
+    if db.query(Question).filter(Question.round_id == round.id, Question.answer == QuestionAnswer.pending).first():
+        raise PermissionError("انتظر الإجابة على السؤال الحالي")
     ok, msg = can_submit_guess(participant, round)
     if not ok:
         raise PermissionError(msg)

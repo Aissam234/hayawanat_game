@@ -5,6 +5,7 @@ import {
   GameSettings, ScoreboardEntry, ReactionEvent
 } from '../types/game'
 import { GameWebSocket } from '../services/websocket'
+import { clearVoiceAudio, receiveVoiceAudio } from '../services/voiceAudio'
 import { saveSession, loadSession } from '../utils/session'
 import { toast } from './toastStore'
 
@@ -143,6 +144,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setRound: (round) => {
+    if (get().round?.id !== round?.id) clearVoiceAudio()
     const { participantId } = get()
     const isMyTurn = round?.current_turn_player_id === participantId
     const myRole = round?.my_role_in_round
@@ -163,7 +165,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   addQuestion: (question) => {
-    const questions = [...get().questions, question]
+    const questions = [...get().questions.filter(q => q.id !== question.id), question]
     const pending = questions.find(q => q.answer === 'pending')
     set({ questions, pendingQuestionId: pending?.id || null })
   },
@@ -208,8 +210,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   connectWs: (roomCode, participantId) => {
     const existing = get().ws
     if (existing) existing.disconnect()
-    const ws = new GameWebSocket(roomCode, participantId)
-    ws.onConnectionChange = (connected) => set({ isConnected: connected })
+    clearVoiceAudio()
+    const ws = new GameWebSocket(roomCode, participantId, get().guestUuid)
+    ws.onConnectionChange = (connected) => {
+      if (get().ws !== ws) return
+      if (!connected) clearVoiceAudio()
+      set({ isConnected: connected })
+    }
     ws.on((event) => get().handleWsEvent(event))
     ws.connect()
     set({ ws, isConnected: false })
@@ -217,6 +224,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   disconnectWs: () => {
     get().ws?.disconnect()
+    clearVoiceAudio()
     set({ ws: null, isConnected: false })
   },
 
@@ -230,13 +238,16 @@ export const useGameStore = create<GameState>((set, get) => ({
           room_status: string
           participants: Participant[]
           host_participant_id: string
-          round?: Round
+          round?: Round | null
+          round_finished?: RoundFinishedData | null
           questions?: Question[]
           settings?: Partial<GameSettings>
           scoreboard?: ScoreboardEntry[]
         }
         setParticipants(data.participants)
-        if (data.round) setRound(data.round)
+        clearVoiceAudio()
+        setRound(data.round || null)
+        setRoundFinished(data.round_finished || null)
         if (data.questions) {
           const pending = data.questions.find(q => q.answer === 'pending')
           set({ questions: data.questions, pendingQuestionId: pending?.id || null })
@@ -284,6 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       case 'participant_removed': {
+        get().disconnectWs()
         toast.error('تمت إزالتك من الغرفة بواسطة المدير.')
         setTimeout(() => { window.location.href = '/' }, 1000)
         break
@@ -296,6 +308,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       case 'room_closed': {
+        get().disconnectWs()
         toast.error('تم إغلاق الغرفة بواسطة المدير.')
         setTimeout(() => { window.location.href = '/' }, 1500)
         break
@@ -305,7 +318,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         toast.warning('تم إلغاء الجولة.')
         setRound(null)
         setRoundFinished(null)
-        set({ timerEndsAt: null })
+        set({ timerEndsAt: null, questions: [], pendingQuestionId: null })
         if (get().room) set({ room: { ...get().room!, status: 'waiting' } })
         break
       }
@@ -319,8 +332,15 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       case 'question_submitted': {
-        const data = event.data as { question: Question; current_turn_player_id: string }
+        const data = event.data as { question: Question; current_turn_player_id: string; round_id?: string; audio?: { audio_base64: string; mime_type: string } }
+        if (data.round_id && data.round_id !== get().round?.id) break
+        if (data.audio && data.question.question_type === 'audio') receiveVoiceAudio(data.question.id, data.audio)
         addQuestion(data.question)
+        break
+      }
+
+      case 'voice_question_accepted': {
+        toast.success('تم إرسال السؤال الصوتي 🎤')
         break
       }
 
@@ -329,13 +349,14 @@ export const useGameStore = create<GameState>((set, get) => ({
           question_id: string
           answer: string
           answerer_name: string
+          question_count: number
           is_valid: boolean
           current_turn_player_id: string | null
         }
         updateQuestion(data.question_id, { answer: data.answer as any, is_valid: data.is_valid })
         set({ pendingQuestionId: null })
         if (get().round) {
-          setRound({ ...get().round!, current_turn_player_id: data.current_turn_player_id })
+          setRound({ ...get().round!, current_turn_player_id: data.current_turn_player_id, ...('question_count' in data ? { question_count: data.question_count } : {}) })
         }
         break
       }
@@ -390,6 +411,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   reset: () => {
+    clearVoiceAudio()
     get().ws?.disconnect()
     set(initialState)
   },

@@ -28,7 +28,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-hayawanat}:${POSTGRES_PASSWORD:-hayawanat_secret}@postgres:5432/${POSTGRES_DB:-hayawanat_db}
     ports:
       - "8000:8000"
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --ws websockets --ws-max-size 393216 --ws-max-queue 4 --ws-per-message-deflate false"
     depends_on:
       postgres:
         condition: service_healthy

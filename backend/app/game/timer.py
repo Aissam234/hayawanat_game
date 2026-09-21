@@ -27,7 +27,8 @@ def register_timer(round_id: uuid.UUID, delay_seconds: int, room_code: str):
         except asyncio.CancelledError:
             logger.info(f"[Timer] Cancelled for round {rid}")
         finally:
-            _timer_tasks.pop(rid, None)
+            if _timer_tasks.get(rid) is asyncio.current_task():
+                _timer_tasks.pop(rid, None)
 
     task = asyncio.create_task(_run())
     _timer_tasks[rid] = task

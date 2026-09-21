@@ -9,6 +9,7 @@ from app.schemas.schemas import StartRoundRequest
 from app.services import round_service, room_service
 from app.models.models import Participant, Round, RoundStatus
 from app.websocket.manager import manager
+from app.websocket.serializers import serialize_question
 from app.game.animals import get_all_animals_for_selector
 
 router = APIRouter(prefix="/api/rounds", tags=["rounds"])
@@ -49,10 +50,12 @@ async def start_round(
     # Validate players exist in room
     p1 = db.query(Participant).filter(
         Participant.id == body.player1_id,
+        Participant.is_active == True,
         Participant.room_id == room.id,
     ).first()
     p2 = db.query(Participant).filter(
         Participant.id == body.player2_id,
+        Participant.is_active == True,
         Participant.room_id == room.id,
     ).first()
 
@@ -144,18 +147,16 @@ async def rematch_api(
         raise HTTPException(status_code=403, detail="فقط مدير الغرفة يستطيع بدء إعادة اللعب")
     
     # Needs the LAST finished round for this room
-    last_round = db.query(Round).filter(Round.room_id == room.id).order_by(Round.created_at.desc()).first()
+    last_round = db.query(Round).filter(Round.room_id == room.id).order_by(Round.started_at.desc()).first()
     if not last_round:
         raise HTTPException(status_code=400, detail="لا توجد جولة سابقة")
         
-    new_round = round_service.rematch(db, room, last_round)
-    
-    all_participants = db.query(Participant).filter(
-        Participant.room_id == room.id, Participant.is_active == True
-    ).all()
+    if last_round.status == RoundStatus.active:
+        raise HTTPException(status_code=400, detail="الجولة ما زالت نشطة")
+    return await start_round(room_code, StartRoundRequest(
+        player1_id=last_round.player1_id, player2_id=last_round.player2_id,
+    ), guest_uuid, db)
 
-    await manager.broadcast_round_started(room_code.upper(), new_round, all_participants)
-    return {"message": "بدأت الجولة", "round_id": str(new_round.id)}
 
 
 @router.get("/{room_code}/current")
@@ -191,15 +192,7 @@ async def get_questions(
     questions = round_service.get_round_questions(db, round_.id)
     return {
         "questions": [
-            {
-                "id": str(q.id),
-                "asker_id": str(q.asker_id),
-                "asker_name": q.asker.display_name if q.asker else "",
-                "question_text": q.question_text,
-                "answer": q.answer.value if hasattr(q.answer, 'value') else q.answer,
-                "is_valid": q.is_valid,
-                "created_at": q.created_at.isoformat(),
-            }
+            serialize_question(q)
             for q in questions
         ]
     }
