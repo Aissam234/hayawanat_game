@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
+from app.core.security import decode_access_token
 from app.websocket.manager import manager
 from app.websocket.audio import MAX_MESSAGE_BYTES, validate_audio
 from app.websocket.serializers import serialize_question, serialize_round_for_participant, serialize_round_finished
@@ -21,7 +22,7 @@ REACTION_COOLDOWN = 1.5
 ALLOWED_REACTIONS = {"😂", "🔥", "👏", "😱", "🤔", "❤️"}
 
 
-def _member(db, room_code, participant_id, guest_id):
+def _member(db, room_code, participant_id, guest_id, access_token=None):
     room = room_service.get_room_by_code(db, room_code)
     if not room or room.status == RoomStatus.closed:
         raise PermissionError("الغرفة غير متاحة")
@@ -31,12 +32,16 @@ def _member(db, room_code, participant_id, guest_id):
     ).first()
     if not participant:
         raise PermissionError("جلسة اللاعب غير صالحة")
+    if participant.user_id:
+        claims = decode_access_token(access_token)
+        if not claims or claims['sub'] != str(participant.user_id):
+            raise PermissionError("جلسة الحساب غير صالحة")
     return room, participant
 
 
-async def _sync(websocket, room_code, p_uuid, guest_id):
+async def _sync(websocket, room_code, p_uuid, guest_id, access_token=None):
     with SessionLocal() as db:
-        room, participant = _member(db, room_code, p_uuid, guest_id)
+        room, participant = _member(db, room_code, p_uuid, guest_id, access_token)
         participant.is_connected = True
         settings = round_service.get_or_create_settings(db, room.id)
         db.commit()
@@ -81,7 +86,7 @@ async def _sync(websocket, room_code, p_uuid, guest_id):
         }}, exclude=str(p_uuid))
 
 
-async def _voice(websocket, room_code, p_uuid, guest_id, data):
+async def _voice(websocket, room_code, p_uuid, guest_id, data, access_token=None):
     # Only echo a bounded, syntactically valid request ID; never echo bad payloads.
     request_id = None
     if isinstance(data, dict):
@@ -91,7 +96,7 @@ async def _voice(websocket, room_code, p_uuid, guest_id, data):
             pass
     try:
         with SessionLocal() as db:
-            room, participant = _member(db, room_code, p_uuid, guest_id)
+            room, participant = _member(db, room_code, p_uuid, guest_id, access_token)
             active = round_service.get_active_round(db, room.id)
             if not active:
                 raise PermissionError("لا توجد جولة نشطة")
@@ -146,17 +151,18 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, participant_i
         participant_id = str(p_uuid)
         # Session credentials travel in the first frame, never in a URL/log.
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=10)
-        if len(raw.encode("utf-8")) > 512:
+        if len(raw.encode("utf-8")) > 8192:
             raise ValueError()
         auth = json.loads(raw)
         if not isinstance(auth, dict) or auth.get("type") != "authenticate":
             raise ValueError()
         guest_id = uuid.UUID(auth.get("guest_uuid", ""))
+        access_token = auth.get("access_token")
         with SessionLocal() as db:
-            _member(db, room_code, p_uuid, guest_id)
+            _member(db, room_code, p_uuid, guest_id, access_token)
         await manager.connect(websocket, room_code, participant_id)
         registered = True
-        await _sync(websocket, room_code, p_uuid, guest_id)
+        await _sync(websocket, room_code, p_uuid, guest_id, access_token)
         last_voice = -1.0
         while True:
             frame = await websocket.receive()
@@ -176,7 +182,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, participant_i
                 continue
             # Membership may change while the socket remains open.
             with SessionLocal() as db:
-                _member(db, room_code, p_uuid, guest_id)
+                _member(db, room_code, p_uuid, guest_id, access_token)
             if msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
             elif msg.get("type") == "voice_question":
@@ -185,7 +191,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, participant_i
                     await websocket.close(code=1008)
                     break
                 last_voice = now
-                await _voice(websocket, room_code, p_uuid, guest_id, msg.get("data"))
+                await _voice(websocket, room_code, p_uuid, guest_id, msg.get("data"), access_token)
             elif msg.get("type") == "reaction" and isinstance(msg.get("data"), dict):
                 await _handle_reaction(msg, room_code, participant_id, p_uuid)
     except WebSocketDisconnect:

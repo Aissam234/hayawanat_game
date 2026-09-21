@@ -1,12 +1,13 @@
 """
 FastAPI main application entry point.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.api import rooms, rounds, questions, guesses, settings as settings_api
-from app.api.rounds import animals_router
+from app.api import rooms, rounds, questions, guesses, settings as settings_api, auth
 from app.websocket import handlers
+from app.db.session import engine
+from app.models.models import Base
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -34,12 +35,13 @@ app.add_middleware(
 )
 
 # REST routers
-app.include_router(rooms.router)
-app.include_router(rounds.router)
-app.include_router(questions.router)
-app.include_router(guesses.router)
-app.include_router(animals_router)
-app.include_router(settings_api.router)
+app.include_router(rounds.animals_router)
+app.include_router(auth.router)
+app.include_router(rooms.router, dependencies=[Depends(auth.authorize_account_guest)])
+app.include_router(rounds.router, dependencies=[Depends(auth.authorize_account_guest)])
+app.include_router(questions.router, dependencies=[Depends(auth.authorize_account_guest)])
+app.include_router(guesses.router, dependencies=[Depends(auth.authorize_account_guest)])
+app.include_router(settings_api.router, dependencies=[Depends(auth.authorize_account_guest)])
 
 # WebSocket
 app.include_router(handlers.router)

@@ -1,20 +1,45 @@
+export class ApiError extends Error { constructor(message: string, public status: number) { super(message) } }
+
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options?.headers as any,
+  }
+
+  // Attach token if present
+  try {
+    const authStorage = localStorage.getItem('auth_storage')
+    if (authStorage) {
+      const state = JSON.parse(authStorage).state
+      if (state && state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
     ...options,
+    headers,
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'خطأ في الخادم' }))
-    throw new Error(err.detail || 'حدث خطأ غير متوقع')
+    const err = await res.json().catch(() => ({ detail: 'خطأ في الشبكة' }))
+    throw new ApiError(typeof err.detail === 'string' ? err.detail : 'تحقق من البيانات المدخلة', res.status)
   }
 
   return res.json()
+}
+
+// Auth endpoints
+export const authApi = {
+  google: (credential: string) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
+  login: (data: any) => request<any>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: any) => request<any>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  getMe: () => request<any>('/api/auth/me'),
 }
 
 // Rooms

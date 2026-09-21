@@ -10,6 +10,7 @@ from app.schemas.schemas import (
 )
 from app.services import room_service
 from app.websocket.manager import manager
+from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
@@ -33,9 +34,10 @@ def _room_to_out(room) -> dict:
 
 
 @router.post("/")
-async def create_room(body: CreateRoomRequest, db: Session = Depends(get_db)):
+async def create_room(body: CreateRoomRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     try:
-        room, participant = room_service.create_room(db, body.display_name, body.guest_uuid)
+        user_id = current_user.id if current_user else None
+        room, participant = room_service.create_room(db, body.display_name, body.guest_uuid, user_id=user_id)
         return {
             "room": _room_to_out(room),
             "participant": {
@@ -50,10 +52,11 @@ async def create_room(body: CreateRoomRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/{room_code}/join")
-async def join_room(room_code: str, body: JoinRoomRequest, db: Session = Depends(get_db)):
+async def join_room(room_code: str, body: JoinRoomRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     try:
+        user_id = current_user.id if current_user else None
         room, participant = room_service.join_room(
-            db, room_code, body.display_name, body.guest_uuid
+            db, room_code, body.display_name, body.guest_uuid, user_id=user_id
         )
         room_data = _room_to_out(room)
         participant_data = {

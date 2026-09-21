@@ -42,7 +42,9 @@ export class GameWebSocket {
 
     this.ws.onopen = () => {
       if (this.ws !== socket) return
-      this.ws?.send(JSON.stringify({ type: 'authenticate', guest_uuid: this.guestUuid }))
+      let accessToken: string | undefined
+      try { accessToken = JSON.parse(localStorage.getItem('auth_storage') || '{}').state?.token } catch { /* Guest */ }
+      this.ws?.send(JSON.stringify({ type: 'authenticate', guest_uuid: this.guestUuid, access_token: accessToken }))
     }
 
     this.ws.onmessage = (evt) => {

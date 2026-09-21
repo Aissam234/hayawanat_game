@@ -64,6 +64,9 @@ async def start_round(
     if str(p1.id) == str(p2.id):
         raise HTTPException(status_code=400, detail="يجب اختيار لاعبين مختلفين")
 
+    if p1.user_id and p1.user_id == p2.user_id:
+        raise HTTPException(status_code=400, detail="يجب اختيار حسابين مختلفين للجولة")
+
     # Read host's persisted settings for this room
     settings = round_service.get_or_create_settings(db, room.id)
 

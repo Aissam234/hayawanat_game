@@ -144,3 +144,33 @@ class ErrorResponse(BaseModel):
 
 class SuccessResponse(BaseModel):
     message: str
+
+
+# ============ Auth Schemas ============
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=100)
+
+class UserLoginRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=1, max_length=100)
+
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(..., min_length=20, max_length=8192)
+
+
+class UserOut(BaseModel):
+    id: uuid.UUID
+    username: str
+    total_score: int
+    display_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut

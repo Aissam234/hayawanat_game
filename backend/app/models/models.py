@@ -55,11 +55,24 @@ class Room(Base):
     settings = relationship("RoomSettings", back_populates="room", uselist=False, cascade="all, delete-orphan")
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=True)
+    google_subject = Column(String(255), unique=True, index=True, nullable=True)
+    display_name = Column(String(50), nullable=True)
+    total_score = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
 class Participant(Base):
     __tablename__ = "participants"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     guest_uuid = Column(UUID(as_uuid=True), nullable=False, index=True)
     display_name = Column(String(50), nullable=False)
     role = Column(SAEnum(ParticipantRole), default=ParticipantRole.audience, nullable=False)
@@ -69,6 +82,7 @@ class Participant(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    user = relationship("User")
     room = relationship("Room", back_populates="participants")
 
 

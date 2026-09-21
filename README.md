@@ -214,8 +214,8 @@ This application can be deployed using the following services:
    - `SECRET_KEY` = `(Generate a random long string, e.g. using openssl rand -hex 32)`
    - `ALLOWED_ORIGINS` = `https://your-frontend-domain.vercel.app` *(Leave temporary if not deployed yet, but remember to update it)*
 6. **Database Migrations on Render**:
-   - The safest way is to use Render's **Release Command**: `alembic upgrade head`.
-   - Or, connect to the Render web shell after deployment and run: `alembic upgrade head`.
+   - On the free plan, run `alembic upgrade head` in the startup command before Uvicorn; the backend Dockerfile already does this.
+   - For Google sign-in and permanent scores, also follow [the authentication deployment guide](docs/GOOGLE_AUTH.md).
 
 ### 3. Frontend Setup (Vercel)
 1. In [Vercel](https://vercel.com), create a new Project and import your GitHub repository.

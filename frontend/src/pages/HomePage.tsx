@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
+import { useAuthStore } from '../store/authStore'
 import { api } from '../services/api'
 import { getOrCreateGuestUuid, saveSession, loadSession } from '../utils/session'
+import { LogOut } from 'lucide-react'
+import AuthModal from '../components/auth/AuthModal'
 
 type Mode = 'home' | 'create' | 'join'
 
@@ -12,6 +15,9 @@ const animals = ['🦁', '🐯', '🐻', '🦊', '🐼', '🦋', '🦒', '🐬',
 export default function HomePage() {
   const navigate = useNavigate()
   const { setSession } = useGameStore()
+  const { user, logout } = useAuthStore()
+  const [showAuth, setShowAuth] = useState(false)
+  const closeAuth = useCallback(() => setShowAuth(false), [])
   const [mode, setMode] = useState<Mode>('home')
   const [displayName, setDisplayName] = useState('')
   const [roomCode, setRoomCode] = useState('')
@@ -29,8 +35,12 @@ export default function HomePage() {
   // Load saved name
   useEffect(() => {
     const session = loadSession()
-    if (session?.displayName) setDisplayName(session.displayName)
-  }, [])
+    if (session) {
+      if (session.displayName) setDisplayName(session.displayName)
+    } else if (user) {
+      setDisplayName(user.display_name || user.username)
+    }
+  }, [user])
 
   const handleCreate = async () => {
     if (!displayName.trim()) { setError('أدخل اسمك أولاً'); return }
@@ -68,6 +78,28 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-animated bg-dots flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {showAuth && <AuthModal onClose={closeAuth} />}
+      {!user && <button onClick={() => setShowAuth(true)} className="absolute top-4 right-4 min-h-12 glass px-4 rounded-xl border border-game-border text-game-text z-10">
+        تسجيل الدخول لحفظ نقاطك
+      </button>}
+      {/* Profile Badge */}
+      {user && (
+        <div className="absolute top-4 right-4 glass px-4 py-2 rounded-2xl flex items-center gap-4 z-10 border border-game-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-game-primary/20 flex items-center justify-center text-game-primary font-bold">
+              {(user.display_name || user.username).charAt(0).toUpperCase()}
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-bold text-game-text">{user.display_name || user.username}</div>
+              <div className="text-xs text-game-text-muted">🏆 {user.total_score} نقطة</div>
+            </div>
+          </div>
+          <button onClick={logout} className="p-2 text-game-text-muted hover:text-red-400 transition-colors" title="تسجيل الخروج">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Floating animal emojis */}
       {floatingAnimals.map((a, i) => (
         <motion.div

@@ -284,6 +284,13 @@ def submit_guess(
         # Award exactly +1 score — within the same transaction as round.status=finished
         participant.score = Participant.score + 1
 
+        # Also award global score if authenticated
+        if participant.user_id:
+            from app.models.models import User
+            user = db.query(User).with_for_update().filter(User.id == participant.user_id).first()
+            if user:
+                user.total_score = User.total_score + 1
+
         # Cancel timer if running
         from app.game.timer import cancel_timer
         cancel_timer(round.id)

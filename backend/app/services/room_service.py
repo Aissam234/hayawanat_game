@@ -25,7 +25,7 @@ def create_unique_room_code(db: Session) -> str:
     raise RuntimeError("Failed to generate unique room code")
 
 
-def create_room(db: Session, display_name: str, guest_uuid: uuid.UUID) -> tuple[Room, Participant]:
+def create_room(db: Session, display_name: str, guest_uuid: uuid.UUID, user_id: uuid.UUID | None = None) -> tuple[Room, Participant]:
     code = create_unique_room_code(db)
     room = Room(code=code, status=RoomStatus.waiting)
     db.add(room)
@@ -33,6 +33,7 @@ def create_room(db: Session, display_name: str, guest_uuid: uuid.UUID) -> tuple[
 
     participant = Participant(
         room_id=room.id,
+        user_id=user_id,
         guest_uuid=guest_uuid,
         display_name=display_name,
         role=ParticipantRole.host,
@@ -49,7 +50,7 @@ def create_room(db: Session, display_name: str, guest_uuid: uuid.UUID) -> tuple[
 
 
 def join_room(
-    db: Session, room_code: str, display_name: str, guest_uuid: uuid.UUID
+    db: Session, room_code: str, display_name: str, guest_uuid: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> tuple[Room, Participant]:
     room = db.query(Room).filter(Room.code == room_code.upper()).first()
     if not room:
@@ -59,19 +60,24 @@ def join_room(
     if room.status == RoomStatus.finished:
         raise ValueError("الغرفة انتهت")
 
-    # Check if this guest already in room (reconnect)
-    existing = db.query(Participant).filter(
+    participant = db.query(Participant).filter(
         Participant.room_id == room.id,
         Participant.guest_uuid == guest_uuid,
     ).first()
-    if existing:
-        if not existing.is_active:
+
+    if participant and participant.user_id != user_id:
+        raise ValueError("هذه الجلسة مرتبطة بحساب آخر؛ أعد تسجيل الدخول")
+    if not participant and user_id:
+        participant = db.query(Participant).filter(Participant.room_id == room.id, Participant.user_id == user_id).first()
+    if participant:
+        if not participant.is_active:
             raise ValueError("تمت إزالتك من هذه الغرفة")
-        existing.is_connected = True
-        existing.display_name = display_name  # Allow name update on reconnect
+        participant.is_connected = True
+        participant.display_name = display_name
+        participant.guest_uuid = guest_uuid
         db.commit()
-        db.refresh(existing)
-        return room, existing
+        db.refresh(participant)
+        return room, participant
 
     # Check for duplicate name
     name_taken = db.query(Participant).filter(
@@ -84,6 +90,7 @@ def join_room(
 
     participant = Participant(
         room_id=room.id,
+        user_id=user_id,
         guest_uuid=guest_uuid,
         display_name=display_name,
         role=ParticipantRole.audience,
