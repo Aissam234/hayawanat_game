@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { AUDIO_MIME_TYPES, MAX_AUDIO_BYTES, MAX_RECORDING_MS, audioToBase64 } from '../../services/voiceAudio'
+import { AUDIO_MIME_TYPES, normalizeAudioMime, MAX_AUDIO_BYTES, MAX_RECORDING_MS, audioToBase64 } from '../../services/voiceAudio'
 import { GameWebSocket } from '../../services/websocket'
 import MicrophoneLevelIndicator from './MicrophoneLevelIndicator'
 
@@ -111,7 +111,9 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
         stopRecording.current = () => {}
         if (!allowed()) { interrupt('انتهى الدور أو انقطع الاتصال؛ تم حذف التسجيل'); return }
         if (!duration || duration > MAX_RECORDING_MS + 500) { interrupt('توقف التسجيل بشكل غير متوقع؛ حاول مرة أخرى'); return }
-        const blob = new Blob(chunks, { type: active.mimeType.toLowerCase() || mime })
+        const recordedMime = normalizeAudioMime(active.mimeType || chunks[0]?.type || mime)
+        if (!recordedMime) { interrupt('صيغة التسجيل غير مدعومة؛ استخدم سؤالاً كتابياً'); return }
+        const blob = new Blob(chunks, { type: recordedMime })
         chunks.length = 0
         if (!blob.size) { interrupt('التسجيل فارغ؛ تأكد من الميكروفون وحاول مرة أخرى'); return }
         recording.current = { blob, duration: Math.min(MAX_RECORDING_MS, Math.max(1, Math.round(duration))), requestId: crypto.randomUUID() }

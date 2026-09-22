@@ -2,6 +2,7 @@
 import base64
 import binascii
 import uuid
+import re
 
 MAX_AUDIO_BYTES = 256 * 1024
 MAX_MESSAGE_BYTES = 384 * 1024
@@ -13,6 +14,18 @@ ALLOWED_MIME_TYPES = {
 }
 
 
+def normalize_audio_mime(value):
+    if not isinstance(value, str):
+        return None
+    match = re.fullmatch(r'\s*(audio/(?:mp4|webm|ogg))\s*(?:;\s*codecs\s*=\s*(?:"([^";]+)"|([^";\s]+))\s*)?', value, re.I)
+    if not match:
+        return None
+    base = match[1].lower()
+    codec = (match[2] or match[3] or '').lower()
+    canonical = base + (';codecs=' + codec if codec else '')
+    return canonical if canonical in ALLOWED_MIME_TYPES else None
+
+
 def validate_audio(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError("بيانات التسجيل غير صالحة")
@@ -21,10 +34,9 @@ def validate_audio(data: dict) -> dict:
         round_id = uuid.UUID(data.get("round_id", ""))
     except (ValueError, TypeError, AttributeError):
         raise ValueError("معرّف السؤال أو الجولة غير صالح") from None
-    mime = data.get("mime_type")
-    if not isinstance(mime, str) or mime.lower() not in ALLOWED_MIME_TYPES:
+    mime = normalize_audio_mime(data.get("mime_type"))
+    if not mime:
         raise ValueError("صيغة التسجيل غير مدعومة؛ استخدم سؤالاً كتابياً")
-    mime = mime.lower()
     duration = data.get("duration_ms")
     if type(duration) is not int or not 1 <= duration <= 12000:
         raise ValueError("يجب ألا يتجاوز التسجيل 12 ثانية")

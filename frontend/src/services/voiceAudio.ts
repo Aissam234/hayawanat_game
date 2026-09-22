@@ -2,10 +2,22 @@
 export const MAX_AUDIO_BYTES = 256 * 1024
 export const MAX_RECORDING_MS = 12000
 export const AUDIO_MIME_TYPES = [
+  'audio/mp4;codecs=mp4a.40.2', 'audio/mp4',
   'audio/webm;codecs=opus', 'audio/webm',
   'audio/ogg;codecs=opus', 'audio/ogg',
-  'audio/mp4;codecs=mp4a.40.2', 'audio/mp4',
 ]
+// Browsers may add spaces, quotes and case variations to recorder MIME types.
+// Canonicalize only known audio codecs; never hide an unsupported codec.
+export function normalizeAudioMime(value: string): string | null {
+  const match = /^\s*(audio\/(?:mp4|webm|ogg))\s*(?:;\s*codecs\s*=\s*(?:"([^";]+)"|([^";\s]+))\s*)?$/i.exec(value)
+  if (!match) return null
+  const base = match[1].toLowerCase()
+  const codec = (match[2] || match[3] || '').toLowerCase()
+  if (!codec) return base
+  if (base === 'audio/mp4' && codec === 'mp4a.40.2') return `${base};codecs=${codec}`
+  if ((base === 'audio/webm' || base === 'audio/ogg') && codec === 'opus') return `${base};codecs=opus`
+  return null
+}
 const cache = new Map<string, { url: string; size: number }>()
 const listeners = new Set<() => void>()
 const notify = () => listeners.forEach(listener => listener())
@@ -21,7 +33,8 @@ export function clearVoiceAudio() {
 }
 export function receiveVoiceAudio(id: string, audio: { audio_base64: string; mime_type: string }) {
   if (cache.has(id)) return
-  if (!AUDIO_MIME_TYPES.includes(audio.mime_type) || audio.audio_base64.length > 349528) return
+  const mime = normalizeAudioMime(audio.mime_type)
+  if (!mime || audio.audio_base64.length > 349528) return
   try {
     const decoded = atob(audio.audio_base64)
     if (!decoded.length || decoded.length > MAX_AUDIO_BYTES) return
@@ -32,7 +45,7 @@ export function receiveVoiceAudio(id: string, audio: { audio_base64: string; mim
       URL.revokeObjectURL(cache.get(oldest)!.url)
       cache.delete(oldest)
     }
-    cache.set(id, { url: URL.createObjectURL(new Blob([bytes], { type: audio.mime_type })), size: bytes.length })
+    cache.set(id, { url: URL.createObjectURL(new Blob([bytes], { type: mime })), size: bytes.length })
     notify()
   } catch { /* Invalid/unplayable media still has readable question metadata. */ }
 }
