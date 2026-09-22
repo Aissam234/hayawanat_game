@@ -1,5 +1,5 @@
 import uuid
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional
 
@@ -150,15 +150,22 @@ class SuccessResponse(BaseModel):
 
 class UserRegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
+
+    @field_validator('username', mode='before')
+    @classmethod
+    def strip_username(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 class UserLoginRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=1, max_length=100)
 
-class GoogleLoginRequest(BaseModel):
-    credential: str = Field(..., min_length=20, max_length=8192)
 
+    @field_validator('username', mode='before')
+    @classmethod
+    def strip_username(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 class UserOut(BaseModel):
     id: uuid.UUID

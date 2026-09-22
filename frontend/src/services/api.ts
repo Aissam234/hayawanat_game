@@ -36,9 +36,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // Auth endpoints
 export const authApi = {
-  google: (credential: string) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
-  login: (data: any) => request<any>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: any) => request<any>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request<any>('/api/auth/me'),
 }
 

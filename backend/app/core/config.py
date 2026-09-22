@@ -8,8 +8,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://hayawanat:hayawanat_secret@postgres:5432/hayawanat_db"
 
-    google_client_id: str = ""
-
     # Security
     secret_key: str = "change-me-in-production"
 

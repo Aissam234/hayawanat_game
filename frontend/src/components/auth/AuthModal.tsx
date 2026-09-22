@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { authApi } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -13,17 +13,24 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const { setAuth } = useAuthStore()
-  const { setSession, guestUuid } = useGameStore()
+  const { setSession } = useGameStore()
+
+  const sending = useRef(false)
+  const [confirmation, setConfirmation] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username || !password) return toast.error('يرجى ملء جميع الحقول')
+    if (sending.current) return
+    if (!username.trim() || !password) return toast.error('يرجى ملء جميع الحقول')
 
+    if (!isLogin && password !== confirmation) return toast.error('كلمتا المرور غير متطابقتين')
+    if (new TextEncoder().encode(password).length > 72) return toast.error('كلمة المرور طويلة جداً')
+    sending.current = true
     setLoading(true)
     try {
       const res = isLogin
-        ? await authApi.login({ username, password })
-        : await authApi.register({ username, password })
+        ? await authApi.login({ username: username.trim(), password })
+        : await authApi.register({ username: username.trim(), password })
 
       useGameStore.getState().reset()
       clearSession()
@@ -39,6 +46,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
     } catch (e: any) {
       toast.error(e.message || 'حدث خطأ')
     } finally {
+      sending.current = false
       setLoading(false)
     }
   }
@@ -46,9 +54,10 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-game-bg/90 backdrop-blur-sm" dir="rtl">
       <motion.div
+        role="dialog" aria-modal="true" aria-labelledby="auth-title"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-sm glass rounded-3xl p-6 border border-game-border relative overflow-hidden shadow-2xl"
+        className="w-full max-w-sm glass rounded-3xl p-6 border border-game-border relative max-h-[90dvh] overflow-y-auto shadow-2xl"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-game-primary/10 to-transparent pointer-events-none" />
         
@@ -56,14 +65,15 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-game-surface border border-game-border shadow-inner mb-4">
             <span className="text-3xl">🦁</span>
           </div>
-          <h2 className="text-2xl font-black text-game-text">حيوانات</h2>
+          <h2 id="auth-title" className="text-2xl font-black text-game-text">حيوانات</h2>
           <p className="text-game-text-muted mt-1 text-sm">يجب تسجيل الدخول للعب وحفظ نقاطك</p>
         </div>
 
         <form onSubmit={handleSubmit} className="relative space-y-4">
           <div>
-            <label className="block text-sm font-bold text-game-text mb-1">اسم المستخدم</label>
+            <label htmlFor="auth-username" className="block text-sm font-bold text-game-text mb-1">اسم المستخدم</label>
             <input
+              id="auth-username" required minLength={3} maxLength={50} autoComplete="username" disabled={loading}
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -73,8 +83,9 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-game-text mb-1">كلمة المرور</label>
+            <label htmlFor="auth-password" className="block text-sm font-bold text-game-text mb-1">كلمة المرور</label>
             <input
+              id="auth-password" required minLength={isLogin ? 1 : 8} maxLength={100} autoComplete={isLogin ? "current-password" : "new-password"} disabled={loading}
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
@@ -84,6 +95,11 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
             />
           </div>
 
+          {!isLogin && <div>
+            <label htmlFor="auth-confirm" className="block text-sm font-bold text-game-text mb-1">تأكيد كلمة المرور</label>
+            <input id="auth-confirm" required type="password" autoComplete="new-password" disabled={loading} value={confirmation} onChange={e => setConfirmation(e.target.value)} className="w-full bg-game-surface border border-game-border rounded-xl px-4 py-3 text-game-text" />
+            <p className="text-xs text-game-text-muted mt-2">8 أحرف على الأقل. احفظ كلمة مرورك؛ استعادتها غير متاحة حالياً.</p>
+          </div>}
           <button
             type="submit"
             disabled={loading}
@@ -97,7 +113,8 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
         <div className="relative mt-6 text-center">
           <button
             type="button"
-            onClick={() => setIsLogin(!isLogin)}
+            disabled={loading}
+            onClick={() => { setIsLogin(!isLogin); setPassword(''); setConfirmation('') }}
             className="text-sm text-game-primary hover:text-game-primary/80 font-semibold transition-colors"
           >
             {isLogin ? 'لا تملك حساباً؟ سجل الآن' : 'لديك حساب؟ سجل الدخول'}

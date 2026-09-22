@@ -215,7 +215,7 @@ This application can be deployed using the following services:
    - `ALLOWED_ORIGINS` = `https://your-frontend-domain.vercel.app` *(Leave temporary if not deployed yet, but remember to update it)*
 6. **Database Migrations on Render**:
    - On the free plan, run `alembic upgrade head` in the startup command before Uvicorn; the backend Dockerfile already does this.
-   - For Google sign-in and permanent scores, also follow [the authentication deployment guide](docs/GOOGLE_AUTH.md).
+   - For username/password sign-in and permanent scores, also follow [the authentication deployment guide](docs/PASSWORD_AUTH.md).
 
 ### 3. Frontend Setup (Vercel)
 1. In [Vercel](https://vercel.com), create a new Project and import your GitHub repository.

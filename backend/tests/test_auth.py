@@ -1,15 +1,10 @@
-"""Account integration tests. Run only against an opted-in disposable database."""
+"""Password authentication regressions; disposable database opt-in required."""
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
-import jwt
 import pytest
+from datetime import timedelta
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-from cryptography.hazmat.primitives.asymmetric import rsa
-
-
 @pytest.fixture
 def auth_env(monkeypatch):
     if os.environ.get('HAYAWANAT_TEST_DATABASE') != '1':
@@ -21,19 +16,13 @@ def auth_env(monkeypatch):
     from app.db.session import SessionLocal
     from app.models.models import User, Room
     settings = get_settings()
-    monkeypatch.setattr(settings, 'google_client_id', 'test-client.apps.googleusercontent.com')
     monkeypatch.setattr(settings, 'secret_key', 'test-only-key-with-more-than-thirty-two-characters')
-    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    monkeypatch.setattr(security, '_google_keys', lambda: SimpleNamespace(get_signing_key_from_jwt=lambda token: SimpleNamespace(key=private.public_key())))
     _attempts.clear()
     with SessionLocal() as db:
         initial_users = {u.id for u in db.query(User).all()}
         initial_rooms = {r.id for r in db.query(Room).all()}
     def credential(**changes):
-        now = datetime.now(timezone.utc)
-        return jwt.encode({'sub': 'subject-' + uuid.uuid4().hex, 'name': 'اختبار Google',
-            'iss': 'https://accounts.google.com', 'aud': settings.google_client_id,
-            'iat': now, 'exp': now + timedelta(minutes=5), **changes}, private, algorithm='RS256', headers={'kid': 'test'})
+        return {'username': 'player_' + changes.get('sub', uuid.uuid4().hex), 'password': 'test-password-123'}
     with TestClient(app) as client:
         yield client, credential, settings
     with SessionLocal() as db:
@@ -46,60 +35,52 @@ def auth_env(monkeypatch):
 
 
 def login(client, credential):
-    response = client.post('/api/auth/google', json={'credential': credential})
+    response = client.post('/api/auth/register', json=credential)
+    if response.status_code == 409:
+        response = client.post('/api/auth/login', json=credential)
     assert response.status_code == 200, response.text
     return response.json()
 
-
-def test_google_signature_and_stable_identity(auth_env):
+def test_password_registration_login_and_hash(auth_env):
     client, credential, _ = auth_env
-    sub = uuid.uuid4().hex
-    first = login(client, credential(sub=sub))
-    second = login(client, credential(sub=sub, name='Changed name'))
-    assert first['user']['id'] == second['user']['id']
-    assert first['user']['total_score'] == 0
-    assert first['user']['display_name'] == 'اختبار Google'
-    assert 'password_hash' not in first['user'] and 'google_subject' not in first['user']
-    headers = {'Authorization': 'Bearer ' + first['access_token']}
-    assert client.get('/api/auth/me', headers=headers).json()['id'] == first['user']['id']
+    data = credential()
+    account = login(client, data)
+    assert client.post('/api/auth/register', json=data).status_code == 409
+    result = client.post('/api/auth/login', json=data)
+    assert result.status_code == 200
+    assert result.json()['user']['id'] == account['user']['id']
+    assert 'password_hash' not in result.json()['user']
+    assert client.post('/api/auth/login', json={**data, 'password':'wrong'}).status_code == 401
+    assert client.post('/api/auth/google', json={}).status_code == 404
+    from app.db.session import SessionLocal
+    from app.models.models import User
+    from app.core.security import verify_password
+    with SessionLocal() as db:
+        user = db.get(User, uuid.UUID(account['user']['id']))
+        assert user.password_hash != data['password']
+        assert verify_password(data['password'], user.password_hash)
 
-
-@pytest.mark.parametrize('changes', [
-    {'aud': 'wrong-client'}, {'iss': 'https://evil.invalid'},
-    {'exp': datetime.now(timezone.utc) - timedelta(hours=1)}, {'sub': ''},
-    {'azp': 'another-client'},
+@pytest.mark.parametrize('data', [
+    {'username':'   ', 'password':'longpassword'},
+    {'username':' ab ', 'password':'longpassword'},
+    {'username':'normal', 'password':'short'},
+    {'username':'normal', 'password':'ع'*40},
 ])
-def test_invalid_google_claims_rejected(auth_env, changes):
-    client, credential, _ = auth_env
-    assert client.post('/api/auth/google', json={'credential': credential(**changes)}).status_code == 401
+def test_invalid_registration(auth_env, data):
+    assert auth_env[0].post('/api/auth/register', json=data).status_code in (400,422)
 
-
-def test_forged_signature_and_bad_application_tokens(auth_env):
-    client, credential, _ = auth_env
-    valid = credential()
-    header, payload, signature = valid.split('.')
-    forged = header + '.' + payload + '.' + ('a' if signature[0] != 'a' else 'b') + signature[1:]
-    assert client.post('/api/auth/google', json={'credential': forged}).status_code == 401
-    assert client.get('/api/auth/me', headers={'Authorization': 'Bearer invalid'}).status_code == 401
-    assert client.get('/api/auth/me').status_code == 401
-
-
-def test_token_lifetime_and_missing_configuration(auth_env):
+def test_token_and_missing_secret(auth_env):
     client, credential, settings = auth_env
-    from app.core.security import decode_access_token
-    data = login(client, credential())
-    claims = decode_access_token(data['access_token'])
-    assert claims['exp'] - claims['iat'] == 7 * 24 * 3600
-    settings.google_client_id = ''
-    assert client.post('/api/auth/google', json={'credential': credential()}).status_code == 503
-
-
-def test_google_failure_does_not_disable_guest_play(auth_env):
-    client, _, settings = auth_env
-    settings.google_client_id = ''
-    response = client.post('/api/rooms/', json={'display_name': 'Guest', 'guest_uuid': str(uuid.uuid4())})
-    assert response.status_code == 200
-
+    from app.core.security import decode_access_token, create_access_token
+    account = login(client, credential())
+    claims = decode_access_token(account['access_token'])
+    assert claims['exp'] - claims['iat'] == 7*24*3600
+    expired = create_access_token({'sub':account['user']['id']}, timedelta(seconds=-1))
+    for token in ['invalid', expired]:
+        assert client.get('/api/auth/me', headers={'Authorization':'Bearer '+token}).status_code == 401
+    assert client.get('/api/auth/me').status_code == 401
+    settings.secret_key = 'short'
+    assert client.post('/api/auth/register', json=credential()).status_code == 503
 
 def test_permanent_win_score_and_account_room_protection(auth_env):
     client, credential, _ = auth_env
@@ -159,8 +140,8 @@ def test_login_attempts_are_limited(auth_env):
     from app.api.auth import _attempts
     _attempts.clear()
     for _ in range(20):
-        client.post('/api/auth/google', json={'credential': 'x' * 20})
-    assert client.post('/api/auth/google', json={'credential': 'x' * 20}).status_code == 429
+        client.post('/api/auth/login', json={'username':'missing', 'password':'wrong'})
+    assert client.post('/api/auth/login', json={'username':'missing', 'password':'wrong'}).status_code == 429
 
 
 def test_guest_animal_catalog_remains_public(auth_env):

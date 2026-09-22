@@ -2,18 +2,17 @@ from collections import OrderedDict
 from threading import Lock
 import time
 import uuid
-import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
 from app.models.models import User, Participant
-from app.schemas.schemas import UserRegisterRequest, UserLoginRequest, UserOut, TokenOut, GoogleLoginRequest
-from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token, verify_google_credential
+from app.schemas.schemas import UserRegisterRequest, UserLoginRequest, UserOut, TokenOut
+from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/login', auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
 _attempts = OrderedDict()
 _attempts_lock = Lock()
 
@@ -33,10 +32,10 @@ def throttle(request: Request):
             raise HTTPException(429, 'محاولات كثيرة؛ انتظر دقيقة ثم حاول مجدداً', headers={'Retry-After': '60'})
 
 
-def get_current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User | None:
-    if not token:
+def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), db: Session = Depends(get_db)) -> User | None:
+    if not credentials:
         return None
-    payload = decode_access_token(token)
+    payload = decode_access_token(credentials.credentials)
     user = db.get(User, uuid.UUID(payload['sub'])) if payload else None
     if not user:
         raise HTTPException(401, 'انتهت جلسة الحساب؛ سجّل الدخول مجدداً')
@@ -71,37 +70,6 @@ def token_response(user):
     return {'access_token': token, 'token_type': 'bearer', 'user': user}
 
 
-@router.post('/google', response_model=TokenOut, dependencies=[Depends(throttle)])
-def google_login(body: GoogleLoginRequest, db: Session = Depends(get_db)):
-    try:
-        claims = verify_google_credential(body.credential)
-        # Fail before creating an account when application signing is unconfigured.
-        create_access_token({'sub': str(uuid.uuid4())})
-    except RuntimeError:
-        raise HTTPException(503, 'تسجيل الدخول عبر Google غير جاهز حالياً؛ يمكنك اللعب كضيف') from None
-    except jwt.PyJWKClientConnectionError:
-        raise HTTPException(503, 'تعذّر الاتصال بـ Google؛ حاول مجدداً') from None
-    except (jwt.PyJWTError, ValueError, TypeError, KeyError):
-        raise HTTPException(401, 'تعذّر التحقق من حساب Google؛ حاول تسجيل الدخول مجدداً') from None
-    user = db.query(User).filter(User.google_subject == claims['sub']).first()
-    if not user:
-        name = claims.get('name')
-        user = User(google_subject=claims['sub'], username='google_' + uuid.uuid4().hex,
-            display_name=name.strip()[:50] if isinstance(name, str) and name.strip() else 'لاعب',
-            password_hash=None)
-        db.add(user)
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            user = db.query(User).filter(User.google_subject == claims['sub']).first()
-            if not user:
-                raise HTTPException(409, 'تعذّر إنشاء الحساب؛ حاول مجدداً') from None
-        db.refresh(user)
-    return token_response(user)
-
-
-# Retain existing password accounts; Google is the default UI for new players.
 @router.post('/register', response_model=TokenOut, dependencies=[Depends(throttle)])
 def register(body: UserRegisterRequest, db: Session = Depends(get_db)):
     try:
