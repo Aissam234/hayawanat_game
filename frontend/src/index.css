@@ -171,3 +171,9 @@ input:focus, textarea:focus {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(0,0,0,0.3);
 }
+
+/* Individual scale composes with existing Framer Motion transforms. */
+@media (prefers-reduced-motion: no-preference) {
+  button { transition: scale 120ms ease, filter 120ms ease; }
+  button:active:not(:disabled):not([aria-disabled="true"]) { scale: 0.96; filter: brightness(1.08); }
+}

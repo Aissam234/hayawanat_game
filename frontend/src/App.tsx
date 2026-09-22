@@ -33,7 +33,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastContainer />
-      {token && <SoundControl />}
+      <SoundControl />
       {!token && <AuthModal />}
       <Routes>
         <Route path="/" element={<HomePage />} />

@@ -374,7 +374,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       case 'round_finished': {
         const data = event.data as RoundFinishedData
-        if (get().roundFinished?.id !== data.id) playSound('finish')
+        if (get().roundFinished?.id !== data.id) {
+          const isPlayer = participantId === data.player1_id || participantId === data.player2_id
+          playSound(!data.winner_id || !isPlayer ? 'finish' : data.winner_id === participantId ? 'win' : 'lose')
+        }
         setRoundFinished(data)
         set({ timerEndsAt: null })
         if (get().room) set({ room: { ...get().room!, status: 'waiting' } })

@@ -31,7 +31,8 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
+        className="fixed inset-0 z-50 flex items-center justify-center px-3 bg-black/85 backdrop-blur-md overflow-hidden"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
       >
         {/* Confetti only if there's a winner */}
         {hasWinner && <Confetti />}
@@ -40,10 +41,11 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
           initial={{ scale: 0.6, opacity: 0, y: 30 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ type: 'spring', damping: 18, stiffness: 250 }}
-          className="glass-strong rounded-3xl w-full max-w-md overflow-hidden shadow-2xl my-4"
+          role="dialog" aria-modal="true" aria-labelledby="victory-title"
+          className="glass-strong rounded-3xl w-full max-w-md min-h-0 max-h-full overflow-y-auto overscroll-contain shadow-2xl"
         >
           {/* Header */}
-          <div className={`relative p-8 text-center border-b border-game-border ${
+          <div className={`relative p-4 sm:p-6 text-center border-b border-game-border ${
             isTimerExpiry
               ? 'bg-gradient-to-b from-red-500/10 to-transparent'
               : hasWinner
@@ -53,16 +55,17 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
             <motion.div
               animate={hasWinner ? { rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.1, 1] } : {}}
               transition={{ duration: 1, delay: 0.5 }}
-              className="text-8xl mb-4"
+              className="text-5xl sm:text-6xl mb-2"
             >
               {isTimerExpiry ? '⏰' : hasWinner ? '🏆' : '🐾'}
             </motion.div>
 
             <motion.h1
+              id="victory-title"
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className={`text-3xl font-black ${
+              className={`text-2xl sm:text-3xl font-black ${
                 isTimerExpiry ? 'text-red-400' :
                 iWon ? 'text-yellow-400 glow-gold' : 'text-game-text'
               }`}
@@ -82,7 +85,7 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
             )}
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-3 sm:p-5 space-y-3">
             {/* Animals reveal */}
             <p className="text-center text-game-text-muted text-sm">كشف الحيوانات السرية</p>
             <div className="grid grid-cols-2 gap-3">
@@ -95,16 +98,16 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 + i * 0.2 }}
-                  className={`text-center p-4 rounded-2xl border ${
+                  className={`min-w-0 text-center p-3 rounded-2xl border ${
                     p.isWinner
                       ? 'bg-yellow-500/10 border-yellow-500/50 glow-gold'
                       : 'bg-game-card border-game-border'
                   }`}
                 >
                   {p.isWinner && <div className="text-lg mb-1">👑</div>}
-                  <div className="text-5xl mb-2">{p.animal?.emoji || '❓'}</div>
+                  <div className="text-4xl mb-1">{p.animal?.emoji || '❓'}</div>
                   <p className="text-sm font-bold text-game-text">{p.animal?.name_ar || '؟'}</p>
-                  <p className="text-xs text-game-text-muted mt-1">{p.name}</p>
+                  <p className="text-xs text-game-text-muted mt-1 break-words">{p.name}</p>
                 </motion.div>
               ))}
             </div>
@@ -121,7 +124,7 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
                 { icon: <Target size={16} />, label: 'تخمينات', value: data.guess_count },
                 { icon: <Clock size={16} />, label: 'المدة', value: formatDuration(data.started_at, data.finished_at) },
               ].map((stat, i) => (
-                <div key={i} className="bg-game-card rounded-xl p-3 text-center border border-game-border">
+                <div key={i} className="bg-game-card rounded-xl p-2 text-center border border-game-border">
                   <div className="text-game-text-muted flex justify-center mb-1">{stat.icon}</div>
                   <div className="text-lg font-black text-game-text">{stat.value}</div>
                   <div className="text-xs text-game-text-muted">{stat.label}</div>
@@ -139,7 +142,7 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.6 }}
-              className="flex gap-3"
+              className="sticky bottom-0 flex gap-2 bg-game-surface rounded-xl p-2"
             >
               <button
                 onClick={onBackToLobby}

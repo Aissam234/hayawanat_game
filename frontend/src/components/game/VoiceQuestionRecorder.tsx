@@ -27,7 +27,6 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
     (!current.current.deadline || Date.now() < current.current.deadline)
 
   function stopTracks() {
-    recordingSounds(false)
     stream.current?.getTracks().forEach(track => { track.onended = null; track.stop() })
     stream.current = null
   }
@@ -36,6 +35,7 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
     timers.current = []
   }
   function discard() {
+    recordingSounds(false)
     generation.current++ // Invalidates late permission, data and send callbacks.
     clearTimers()
     const active = recorder.current
@@ -79,6 +79,7 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
     const mime = AUDIO_MIME_TYPES.find(type => MediaRecorder.isTypeSupported(type))
     if (!mime) { setError('متصفحك لا يدعم صيغة تسجيل مناسبة؛ استخدم سؤالاً كتابياً'); return }
     const token = generation.current
+    recordingSounds(true)
     setRequesting(true)
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: true })
