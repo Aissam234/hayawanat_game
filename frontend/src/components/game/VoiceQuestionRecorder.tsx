@@ -1,3 +1,4 @@
+import { recordingSounds } from '../../services/gameSounds'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AUDIO_MIME_TYPES, normalizeAudioMime, MAX_AUDIO_BYTES, MAX_RECORDING_MS, audioToBase64 } from '../../services/voiceAudio'
@@ -26,6 +27,7 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
     (!current.current.deadline || Date.now() < current.current.deadline)
 
   function stopTracks() {
+    recordingSounds(false)
     stream.current?.getTracks().forEach(track => { track.onended = null; track.stop() })
     stream.current = null
   }
@@ -83,6 +85,7 @@ export default function VoiceQuestionRecorder({ roundId, enabled, deadline, ws }
       if (token !== generation.current || !mounted.current || !allowed()) {
         media.getTracks().forEach(track => track.stop()); return
       }
+      recordingSounds(true)
       stream.current = media
       media.getTracks().forEach(track => { track.onended = () => interrupt('انقطع الميكروفون؛ سجّل السؤال مجدداً') })
       const active = new MediaRecorder(media, { mimeType: mime, audioBitsPerSecond: 64000 })

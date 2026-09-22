@@ -1,3 +1,4 @@
+import { playSound } from '../services/gameSounds'
 import { create } from 'zustand'
 import {
   Room, Participant, Round, Question, Animal,
@@ -325,6 +326,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       case 'round_started': {
         const round = event.data as Round
+        if (get().round?.id !== round.id) playSound('start')
         setRound(round)
         set({ questions: [], roundFinished: null, pendingQuestionId: null })
         if (get().room) set({ room: { ...get().room!, status: 'playing' } })
@@ -335,6 +337,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         const data = event.data as { question: Question; current_turn_player_id: string; round_id?: string; audio?: { audio_base64: string; mime_type: string } }
         if (data.round_id && data.round_id !== get().round?.id) break
         if (data.audio && data.question.question_type === 'audio') receiveVoiceAudio(data.question.id, data.audio)
+        if (!get().questions.some(q => q.id === data.question.id) && data.question.asker_id !== participantId) playSound('question')
         addQuestion(data.question)
         break
       }
@@ -353,6 +356,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           is_valid: boolean
           current_turn_player_id: string | null
         }
+        if (data.current_turn_player_id === participantId && get().pendingQuestionId === data.question_id) playSound('turn')
         updateQuestion(data.question_id, { answer: data.answer as any, is_valid: data.is_valid })
         set({ pendingQuestionId: null })
         if (get().round) {
@@ -362,6 +366,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       case 'wrong_guess': {
+        playSound('wrong')
         const data = event.data as { current_turn_player_id: string; guesser_name: string; guessed_animal: Animal }
         if (get().round) setRound({ ...get().round!, current_turn_player_id: data.current_turn_player_id })
         break
@@ -369,6 +374,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       case 'round_finished': {
         const data = event.data as RoundFinishedData
+        if (get().roundFinished?.id !== data.id) playSound('finish')
         setRoundFinished(data)
         set({ timerEndsAt: null })
         if (get().room) set({ room: { ...get().room!, status: 'waiting' } })

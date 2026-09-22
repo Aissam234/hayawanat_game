@@ -7,6 +7,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { useGameStore } from './store/gameStore'
 import { useAuthStore } from './store/authStore'
 import { authApi, ApiError } from './services/api'
+import SoundControl from './components/shared/SoundControl'
 import AuthModal from './components/auth/AuthModal'
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastContainer />
+      {token && <SoundControl />}
       {!token && <AuthModal />}
       <Routes>
         <Route path="/" element={<HomePage />} />
