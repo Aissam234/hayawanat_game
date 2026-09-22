@@ -11,6 +11,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { setAuth } = useAuthStore()
   const { setSession } = useGameStore()
@@ -21,10 +22,11 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (sending.current) return
-    if (!username.trim() || !password) return toast.error('يرجى ملء جميع الحقول')
+    setError('')
+    if (!username.trim() || !password) return setError('يرجى ملء جميع الحقول')
 
-    if (!isLogin && password !== confirmation) return toast.error('كلمتا المرور غير متطابقتين')
-    if (new TextEncoder().encode(password).length > 72) return toast.error('كلمة المرور طويلة جداً')
+    if (!isLogin && password !== confirmation) return setError('كلمتا المرور غير متطابقتين')
+    if (new TextEncoder().encode(password).length > 72) return setError('كلمة المرور طويلة جداً')
     sending.current = true
     setLoading(true)
     try {
@@ -44,7 +46,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
       toast.success(isLogin ? 'تم تسجيل الدخول بنجاح!' : 'تم إنشاء الحساب بنجاح!')
       if (onClose) onClose()
     } catch (e: any) {
-      toast.error(e.message || 'حدث خطأ')
+      setError(e.message || 'حدث خطأ')
     } finally {
       sending.current = false
       setLoading(false)
@@ -100,6 +102,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
             <input id="auth-confirm" required type="password" autoComplete="new-password" disabled={loading} value={confirmation} onChange={e => setConfirmation(e.target.value)} className="w-full bg-game-surface border border-game-border rounded-xl px-4 py-3 text-game-text" />
             <p className="text-xs text-game-text-muted mt-2">8 أحرف على الأقل. احفظ كلمة مرورك؛ استعادتها غير متاحة حالياً.</p>
           </div>}
+          {error && <div role="alert" className="rounded-xl border border-red-400/40 bg-red-950/40 p-3 text-sm text-red-200 break-words">{error}</div>}
           <button
             type="submit"
             disabled={loading}
@@ -114,7 +117,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
           <button
             type="button"
             disabled={loading}
-            onClick={() => { setIsLogin(!isLogin); setPassword(''); setConfirmation('') }}
+            onClick={() => { setIsLogin(!isLogin); setError(''); setPassword(''); setConfirmation('') }}
             className="text-sm text-game-primary hover:text-game-primary/80 font-semibold transition-colors"
           >
             {isLogin ? 'لا تملك حساباً؟ سجل الآن' : 'لديك حساب؟ سجل الدخول'}
