@@ -5,12 +5,14 @@ import { useAuthStore } from '../../store/authStore'
 import { useGameStore } from '../../store/gameStore'
 import { toast } from '../../store/toastStore'
 import { LogIn, UserPlus } from 'lucide-react'
+import { AVATARS, type AvatarId } from './Avatar'
 import { clearSession } from '../../utils/session'
 
 export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [avatarId, setAvatarId] = useState<AvatarId | ''>('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { setAuth } = useAuthStore()
@@ -27,12 +29,13 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
 
     if (!isLogin && password !== confirmation) return setError('كلمتا المرور غير متطابقتين')
     if (new TextEncoder().encode(password).length > 72) return setError('كلمة المرور طويلة جداً')
+    if (!isLogin && !avatarId) return setError('اختر صورتك الشخصية أولاً')
     sending.current = true
     setLoading(true)
     try {
       const res = isLogin
         ? await authApi.login({ username: username.trim(), password })
-        : await authApi.register({ username: username.trim(), password })
+        : await authApi.register({ username: username.trim(), password, avatar_id: avatarId as AvatarId })
 
       useGameStore.getState().reset()
       clearSession()
@@ -102,6 +105,18 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
             <input id="auth-confirm" required type="password" autoComplete="new-password" disabled={loading} value={confirmation} onChange={e => setConfirmation(e.target.value)} className="w-full bg-game-surface border border-game-border rounded-xl px-4 py-3 text-game-text" />
             <p className="text-xs text-game-text-muted mt-2">8 أحرف على الأقل. احفظ كلمة مرورك؛ استعادتها غير متاحة حالياً.</p>
           </div>}
+          {!isLogin && <fieldset disabled={loading}>
+            <legend className="text-sm font-bold text-game-text mb-2">اختر صورتك الشخصية (مطلوب)</legend>
+            <div className="grid grid-cols-4 gap-2">
+              {AVATARS.map(avatar => <label key={avatar.id} className="relative cursor-pointer">
+                <input type="radio" name="avatar" value={avatar.id} checked={avatarId === avatar.id} onChange={() => setAvatarId(avatar.id)} required aria-label={avatar.label} className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
+                <span className="flex flex-col items-center justify-center min-h-[64px] rounded-xl border border-game-border bg-game-surface peer-checked:border-game-primary peer-checked:bg-game-primary/25 peer-focus-visible:ring-2 peer-focus-visible:ring-white transition-colors">
+                  <span aria-hidden="true" className="text-3xl">{avatar.emoji}</span>
+                  <span className="text-xs text-game-text mt-1">{avatar.label}</span>
+                </span>
+              </label>)}
+            </div>
+          </fieldset>}
           {error && <div role="alert" className="rounded-xl border border-red-400/40 bg-red-950/40 p-3 text-sm text-red-200 break-words">{error}</div>}
           <button
             type="submit"

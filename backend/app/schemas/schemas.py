@@ -149,7 +149,11 @@ class SuccessResponse(BaseModel):
 
 # ============ Auth Schemas ============
 
+AvatarId = Literal["lion", "tiger", "fox", "panda", "bear", "koala", "rabbit", "cat", "dog", "frog", "owl", "penguin"]
+
+
 class UserRegisterRequest(BaseModel):
+    avatar_id: AvatarId
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8, max_length=100)
 
@@ -169,6 +173,7 @@ class UserLoginRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 class UserOut(BaseModel):
+    avatar_id: AvatarId
     id: uuid.UUID
     username: str
     total_score: int

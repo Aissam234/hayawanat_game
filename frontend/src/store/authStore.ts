@@ -4,6 +4,7 @@ import { useGameStore } from './gameStore'
 import { clearSession } from '../utils/session'
 
 export interface User {
+  avatar_id?: string
   id: string
   username: string
   display_name?: string | null

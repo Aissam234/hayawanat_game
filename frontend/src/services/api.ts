@@ -37,7 +37,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 // Auth endpoints
 export const authApi = {
   login: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: { username: string; password: string; avatar_id: import('../components/auth/Avatar').AvatarId }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request<any>('/api/auth/me'),
 }
 

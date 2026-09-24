@@ -79,7 +79,7 @@ def register(body: UserRegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(503, 'تسجيل الدخول غير جاهز حالياً') from None
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
-    user = User(username=body.username.strip(), password_hash=hashed)
+    user = User(username=body.username.strip(), password_hash=hashed, avatar_id=body.avatar_id)
     db.add(user)
     try:
         db.commit()

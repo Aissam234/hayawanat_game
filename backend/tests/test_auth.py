@@ -22,7 +22,7 @@ def auth_env(monkeypatch):
         initial_users = {u.id for u in db.query(User).all()}
         initial_rooms = {r.id for r in db.query(Room).all()}
     def credential(**changes):
-        return {'username': 'player_' + changes.get('sub', uuid.uuid4().hex), 'password': 'test-password-123'}
+        return {'username': 'player_' + changes.get('sub', uuid.uuid4().hex), 'password': 'test-password-123', 'avatar_id': 'fox'}
     with TestClient(app) as client:
         yield client, credential, settings
     with SessionLocal() as db:
@@ -50,6 +50,9 @@ def test_password_registration_login_and_hash(auth_env):
     assert result.status_code == 200
     assert result.json()['user']['id'] == account['user']['id']
     assert 'password_hash' not in result.json()['user']
+    assert account['user']['avatar_id'] == 'fox'
+    assert result.json()['user']['avatar_id'] == 'fox'
+    assert client.get('/api/auth/me', headers={'Authorization': 'Bearer ' + account['access_token']}).json()['avatar_id'] == 'fox'
     assert client.post('/api/auth/login', json={**data, 'password':'wrong'}).status_code == 401
     assert client.post('/api/auth/google', json={}).status_code == 404
     from app.db.session import SessionLocal
@@ -67,7 +70,7 @@ def test_password_registration_login_and_hash(auth_env):
     {'username':'normal', 'password':'ع'*40},
 ])
 def test_invalid_registration(auth_env, data):
-    assert auth_env[0].post('/api/auth/register', json=data).status_code in (400,422)
+    assert auth_env[0].post('/api/auth/register', json={**data, 'avatar_id': 'lion'}).status_code in (400,422)
 
 def test_token_and_missing_secret(auth_env):
     client, credential, settings = auth_env
@@ -149,3 +152,13 @@ def test_guest_animal_catalog_remains_public(auth_env):
     response = client.get("/api/animals/list")
     assert response.status_code == 200
     assert response.json()["animals"]
+
+
+@pytest.mark.parametrize('avatar', [None, '', 'unknown', 'https://example.com/avatar.png'])
+def test_registration_requires_valid_avatar(auth_env, avatar):
+    client, credential, _ = auth_env
+    data = credential()
+    data.pop('avatar_id')
+    if avatar is not None:
+        data['avatar_id'] = avatar
+    assert client.post('/api/auth/register', json=data).status_code == 422

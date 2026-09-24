@@ -7,6 +7,7 @@ import { api } from '../services/api'
 import { getOrCreateGuestUuid, saveSession, loadSession } from '../utils/session'
 import { LogOut } from 'lucide-react'
 import AuthModal from '../components/auth/AuthModal'
+import Avatar from '../components/auth/Avatar'
 
 type Mode = 'home' | 'create' | 'join'
 
@@ -84,7 +85,7 @@ export default function HomePage() {
         <div className="absolute top-4 right-4 glass px-4 py-2 rounded-2xl border border-game-border flex items-center gap-3 z-10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
-              {(user.display_name || user.username).charAt(0).toUpperCase()}
+              <Avatar id={user.avatar_id} />
             </div>
             <div className="text-right">
               <div className="text-sm font-bold text-game-text">{user.display_name || user.username}</div>
