@@ -3,6 +3,7 @@ Role-aware serialization — the core security layer.
 A player NEVER receives their own secret animal in any API response or WS event.
 """
 import uuid
+from app.services.match_service import match_summary
 from app.models.models import Round, Participant
 from app.game.animals import get_animal_dict
 
@@ -17,6 +18,7 @@ def serialize_round_for_participant(round: Round, viewer: Participant) -> dict:
     """
     base = {
         "id": str(round.id),
+        "match": match_summary(round),
         "round_number": round.round_number,
         "player1_id": str(round.player1_id),
         "player1_name": round.player1.display_name if round.player1 else "",
@@ -64,6 +66,7 @@ def serialize_round_finished(round: Round) -> dict:
     """Called when round ends — now safe to reveal all animals."""
     return {
         "id": str(round.id),
+        "match": match_summary(round),
         "winner_id": str(round.winner_id) if round.winner_id else None,
         "winner_name": round.winner.display_name if round.winner else None,
         "player1_id": str(round.player1_id),

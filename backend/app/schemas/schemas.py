@@ -1,7 +1,7 @@
 import uuid
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 
 # ============ Room Schemas ============
@@ -60,6 +60,7 @@ class GameSettingsOut(BaseModel):
 # ============ Round Schemas ============
 
 class StartRoundRequest(BaseModel):
+    best_of: Literal[1, 3] = 1
     player1_id: uuid.UUID
     player2_id: uuid.UUID
     difficulty: str = "medium"   # kept for backward-compat; settings panel overrides this

@@ -79,10 +79,10 @@ export const api = {
     }),
 
   // Rounds
-  startRound: (roomCode: string, player1Id: string, player2Id: string, difficulty: string, guestUuid: string) =>
+  startRound: (roomCode: string, player1Id: string, player2Id: string, difficulty: string, guestUuid: string, bestOf: 1 | 3 = 1) =>
     request<{ message: string; round_id: string }>(`/api/rounds/${roomCode}/new-round?guest_uuid=${guestUuid}`, {
       method: 'POST',
-      body: JSON.stringify({ player1_id: player1Id, player2_id: player2Id, difficulty }),
+      body: JSON.stringify({ player1_id: player1Id, player2_id: player2Id, difficulty, best_of: bestOf }),
     }),
 
   cancelRound: (roomCode: string, guestUuid: string) =>

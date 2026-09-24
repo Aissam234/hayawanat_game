@@ -1,3 +1,4 @@
+import InviteRoom from '../components/lobby/InviteRoom'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -23,6 +24,7 @@ export default function LobbyPage() {
 
   const [player1Id, setPlayer1Id] = useState('')
   const [player2Id, setPlayer2Id] = useState('')
+  const [bestOf, setBestOf] = useState<1 | 3>(1)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -102,7 +104,7 @@ export default function LobbyPage() {
     if (player1Id === player2Id) { setError('يجب اختيار لاعبين مختلفين'); return }
     setStarting(true); setError('')
     try {
-      await api.startRound(roomCode!, player1Id, player2Id, settings.difficulty, guestUuid)
+      await api.startRound(roomCode!, player1Id, player2Id, settings.difficulty, guestUuid, bestOf)
       navigate(`/game/${roomCode}`)
     } catch (e: any) {
       setError(e.message || 'خطأ في بدء الجولة')
@@ -203,6 +205,7 @@ export default function LobbyPage() {
           <p className="text-game-text-muted text-xs mt-2">شارك الكود مع أصدقائك</p>
         </motion.div>
 
+        <InviteRoom code={roomCode!} />
         {/* Participants */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
@@ -234,6 +237,12 @@ export default function LobbyPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="space-y-4"
           >
+            <label className="glass rounded-xl p-4 block text-game-text">نمط المباراة
+              <select aria-label="نمط المباراة" value={bestOf} onChange={e => setBestOf(Number(e.target.value) as 1 | 3)} className="bg-game-surface rounded-lg p-3 w-full mt-2">
+                <option value={1}>جولة واحدة</option><option value={3}>الأفضل من ثلاث — أول فوزين</option>
+              </select>
+              <span className="text-xs text-game-text-muted">بدء اللعب هنا يبدأ مباراة جديدة. تابع المباراة الحالية من زر إعادة اللعب في النتيجة.</span>
+            </label>
             {/* Player selection */}
             <div className="glass rounded-2xl p-5 border border-game-border space-y-4">
               <h2 className="text-base font-bold text-game-text flex items-center gap-2">

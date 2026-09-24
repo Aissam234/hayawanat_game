@@ -86,6 +86,11 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
           </div>
 
           <div className="p-3 sm:p-5 space-y-3">
+            {data.match && <div className="text-center p-3 rounded-xl bg-violet-500/15 text-game-text" role="status">
+              <p className="font-bold">{data.match.champion_id ? `🏆 بطل المباراة: ${data.match.champion_id === data.player1_id ? data.player1_name : data.player2_name}` : 'الأفضل من ثلاث — أول فوزين'}</p>
+              <p>{data.player1_name}: {data.match.player1_wins} — {data.player2_name}: {data.match.player2_wins}</p>
+              {!data.match.champion_id && <p className="text-xs">الجولة بلا فائز لا تحتسب فوزاً؛ تابع بنفس اللاعبين.</p>}
+            </div>}
             {/* Animals reveal */}
             <p className="text-center text-game-text-muted text-sm">كشف الحيوانات السرية</p>
             <div className="grid grid-cols-2 gap-3">
@@ -157,7 +162,7 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
                   onClick={onNewRound}
                   className="flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-l from-indigo-600 to-violet-600 glow-primary transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  🔄 إعادة اللعب
+                  {data.match ? data.match.champion_id ? '🏆 مباراة جديدة' : '▶ الجولة التالية' : '🔄 إعادة اللعب'}
                 </motion.button>
               )}
             </motion.div>

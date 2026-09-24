@@ -174,6 +174,7 @@ export default function GamePage() {
   return (
     <div className="min-h-screen bg-animated bg-dots pb-8">
       <ConnectionStatus isConnected={isConnected} />
+      {round?.match && <div className="text-center text-sm text-violet-200 p-3" role="status">🏆 أول فوزين · {round.player1_name}: {round.match.player1_wins} — {round.player2_name}: {round.match.player2_wins}</div>}
 
       <ConfirmModal
         isOpen={modalState.isOpen}

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.schemas import StartRoundRequest
 from app.services import round_service, room_service
-from app.models.models import Participant, Round, RoundStatus
+from app.models.models import Participant, Round, RoundStatus, Room
 from app.websocket.manager import manager
 from app.websocket.serializers import serialize_question
 from app.game.animals import get_all_animals_for_selector
@@ -34,12 +34,12 @@ def _require_participant(db: Session, room_code: str, guest_uuid_str: str):
     return room, participant
 
 
-@router.post("/{room_code}/start")
-async def start_round(
+async def _start_round(
     room_code: str,
     body: StartRoundRequest,
     guest_uuid: str,
     db: Session = Depends(get_db),
+    _series_id: uuid.UUID | None = None,
 ):
     room, host_participant = _require_participant(db, room_code, guest_uuid)
 
@@ -47,6 +47,9 @@ async def start_round(
     if str(host_participant.id) != str(room.host_participant_id):
         raise HTTPException(status_code=403, detail="فقط مدير الغرفة يستطيع بدء الجولة")
 
+    db.query(Room).filter(Room.id == room.id).with_for_update().one()
+    if round_service.get_active_round(db, room.id):
+        raise HTTPException(409, "توجد جولة نشطة بالفعل")
     # Validate players exist in room
     p1 = db.query(Participant).filter(
         Participant.id == body.player1_id,
@@ -72,6 +75,7 @@ async def start_round(
 
     round_ = round_service.start_round(
         db, room, body.player1_id, body.player2_id,
+        best_of=body.best_of, series_id=_series_id,
         difficulty=settings.difficulty,
         timer_duration=settings.timer_duration,
         max_questions=settings.max_questions,
@@ -109,6 +113,7 @@ async def start_round(
     return {"message": "بدأت الجولة", "round_id": str(round_.id)}
 
 
+@router.post("/{room_code}/start")
 @router.post("/{room_code}/new-round")
 async def new_round(
     room_code: str,
@@ -117,7 +122,7 @@ async def new_round(
     db: Session = Depends(get_db),
 ):
     """Host starts a brand new round in the same room."""
-    return await start_round(room_code, body, guest_uuid, db)
+    return await _start_round(room_code, body, guest_uuid, db)
 
 
 @router.post("/{room_code}/cancel")
@@ -149,6 +154,7 @@ async def rematch_api(
     if str(host.id) != str(room.host_participant_id):
         raise HTTPException(status_code=403, detail="فقط مدير الغرفة يستطيع بدء إعادة اللعب")
     
+    db.query(Room).filter(Room.id == room.id).with_for_update().one()
     # Needs the LAST finished round for this room
     last_round = db.query(Round).filter(Round.room_id == room.id).order_by(Round.started_at.desc()).first()
     if not last_round:
@@ -156,9 +162,12 @@ async def rematch_api(
         
     if last_round.status == RoundStatus.active:
         raise HTTPException(status_code=400, detail="الجولة ما زالت نشطة")
-    return await start_round(room_code, StartRoundRequest(
-        player1_id=last_round.player1_id, player2_id=last_round.player2_id,
-    ), guest_uuid, db)
+    from app.services.match_service import match_summary
+    summary = match_summary(last_round)
+    continuation = last_round.series_id if summary and not summary['champion_id'] else None
+    return await _start_round(room_code, StartRoundRequest(
+        player1_id=last_round.player1_id, player2_id=last_round.player2_id, best_of=last_round.best_of,
+    ), guest_uuid, db, continuation)
 
 
 

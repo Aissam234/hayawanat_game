@@ -86,6 +86,8 @@ def start_round(
     max_questions: int | None = None,
     allow_repeated: bool = True,
     reactions_enabled: bool = True,
+    best_of: int = 1,
+    series_id: uuid.UUID | None = None,
 ) -> Round:
     # End any existing active round
     active = get_active_round(db, room.id)
@@ -116,6 +118,8 @@ def start_round(
     round_ = Round(
         room_id=room.id,
         round_number=prev_count + 1,
+        best_of=best_of,
+        series_id=(series_id or uuid.uuid4()) if best_of > 1 else None,
         player1_id=player1_id,
         player2_id=player2_id,
         player1_animal_id=animal1_id,
@@ -374,6 +378,8 @@ def rematch(db: Session, room: Room, old_round: Round) -> Round:
     round_ = Round(
         room_id=room.id,
         round_number=prev_count + 1,
+        best_of=best_of,
+        series_id=(series_id or uuid.uuid4()) if best_of > 1 else None,
         player1_id=player1_id,
         player2_id=player2_id,
         player1_animal_id=animal1_id,

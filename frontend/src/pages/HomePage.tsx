@@ -18,9 +18,11 @@ export default function HomePage() {
   const { user, logout } = useAuthStore()
   const [showAuth, setShowAuth] = useState(false)
   const closeAuth = useCallback(() => setShowAuth(false), [])
-  const [mode, setMode] = useState<Mode>('home')
+  const invite = new URLSearchParams(window.location.search).get('join')?.toUpperCase() || ''
+  const validInvite = /^[A-Z2-9]{5}$/.test(invite) ? invite : ''
+  const [mode, setMode] = useState<Mode>(validInvite ? 'join' : 'home')
   const [displayName, setDisplayName] = useState('')
-  const [roomCode, setRoomCode] = useState('')
+  const [roomCode, setRoomCode] = useState(validInvite)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [floatingAnimals] = useState(() =>

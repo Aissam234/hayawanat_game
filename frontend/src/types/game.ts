@@ -52,7 +52,10 @@ export interface ReactionEvent {
   ts: number
 }
 
+export interface MatchSummary { id: string; best_of: number; target: number; player1_wins: number; player2_wins: number; champion_id: string | null; rounds_played: number }
+
 export interface Round {
+  match?: MatchSummary | null
   id: string
   round_number: number
   player1_id: string
@@ -100,6 +103,7 @@ export interface Guess {
 }
 
 export interface RoundFinishedData {
+  match?: MatchSummary | null
   id: string
   winner_id: string | null
   winner_name: string | null

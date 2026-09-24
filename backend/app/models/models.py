@@ -91,6 +91,8 @@ class Round(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    series_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    best_of = Column(Integer, nullable=False, default=1, server_default="1")
     round_number = Column(Integer, nullable=False, default=1)
     player1_id = Column(UUID(as_uuid=True), ForeignKey("participants.id"), nullable=False)
     player2_id = Column(UUID(as_uuid=True), ForeignKey("participants.id"), nullable=False)
