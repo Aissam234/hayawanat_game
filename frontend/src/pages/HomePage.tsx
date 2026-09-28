@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { useAuthStore } from '../store/authStore'
 import { api } from '../services/api'
 import { getOrCreateGuestUuid, saveSession, loadSession } from '../utils/session'
 import { LogOut } from 'lucide-react'
-import AuthModal from '../components/auth/AuthModal'
 import Avatar from '../components/auth/Avatar'
 
 type Mode = 'home' | 'create' | 'join'
@@ -15,10 +14,9 @@ const animals = ['🦁', '🐯', '🐻', '🦊', '🐼', '🦋', '🦒', '🐬',
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const reduced = useReducedMotion()
   const { setSession } = useGameStore()
   const { user, logout } = useAuthStore()
-  const [showAuth, setShowAuth] = useState(false)
-  const closeAuth = useCallback(() => setShowAuth(false), [])
   const invite = new URLSearchParams(window.location.search).get('join')?.toUpperCase() || ''
   const validInvite = /^[A-Z2-9]{5}$/.test(invite) ? invite : ''
   const [mode, setMode] = useState<Mode>(validInvite ? 'join' : 'home')
@@ -80,14 +78,14 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-animated bg-dots flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="friends-entry min-h-screen bg-animated bg-dots flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {user && (
-        <div className="absolute top-4 right-4 glass px-4 py-2 rounded-2xl border border-game-border flex items-center gap-3 z-10">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+        <div className="friends-profile glass px-4 py-2 rounded-2xl border border-game-border flex items-center gap-3 z-10">
+          <div className="friends-profile-identity flex items-center gap-2">
+            <div className="friends-avatar w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
               <Avatar id={user.avatar_id} />
             </div>
-            <div className="text-right">
+            <div className="friends-profile-name text-right">
               <div className="text-sm font-bold text-game-text">{user.display_name || user.username}</div>
               <div className="text-xs text-game-text-muted">🐾 {user.total_score} نقاط</div>
             </div>
@@ -99,18 +97,19 @@ export default function HomePage() {
       )}
 
       {/* Floating animal emojis */}
-      {floatingAnimals.map((a, i) => (
+      {!reduced && floatingAnimals.map((a, i) => (
         <motion.div
           key={i}
           className="fixed text-4xl pointer-events-none select-none opacity-10"
           style={{ left: `${a.x}%` }}
           animate={{ y: ['-100vh', '110vh'] }}
-          transition={{ duration: a.duration, delay: a.delay, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: a.duration, delay: a.delay, repeat: 1, ease: 'linear' }}
         >
           {a.emoji}
         </motion.div>
       ))}
 
+      <button onClick={() => navigate('/')} className="mb-6 min-h-11 text-game-text-muted">← اختيار نمط اللعب</button>
       {/* Logo */}
       <motion.div
         initial={{ opacity: 0, y: -40 }}
@@ -119,17 +118,17 @@ export default function HomePage() {
         className="text-center mb-10"
       >
         <motion.div
-          animate={{ rotate: [0, 5, -5, 0] }}
-          transition={{ duration: 3, repeat: Infinity }}
+          animate={reduced ? {} : { rotate: [0, 5, -5, 0] }}
+          transition={{ duration: 3, repeat: 2 }}
           className="text-7xl mb-4 filter drop-shadow-2xl"
         >
-          🐾
+          🦁 🦊
         </motion.div>
         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-l from-indigo-400 via-violet-400 to-purple-400 mb-2 pb-2">
-          لعبة الحيوانات
+          جمّع الشلّة!
         </h1>
         <p className="text-game-text-muted text-lg font-medium">
-          اكتشف حيوانك قبل خصمك! 🎯
+          سؤال منك، ضحكة منهم… والتحدّي يبدأ!
         </p>
       </motion.div>
 
@@ -256,7 +255,7 @@ export default function HomePage() {
       >
         {[
           { icon: '🌐', label: 'أونلاين' },
-          { icon: '⚡', label: 'Real-Time' },
+          { icon: '🎙️', label: 'صوت وكتابة' },
           { icon: '👥', label: 'جماعية' },
         ].map(f => (
           <div key={f.label} className="text-game-text-muted text-sm">

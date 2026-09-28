@@ -42,7 +42,7 @@ export default function VictoryScreen({ data, myId, isHost, onNewRound, onBackTo
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ type: 'spring', damping: 18, stiffness: 250 }}
           role="dialog" aria-modal="true" aria-labelledby="victory-title"
-          className="glass-strong rounded-3xl w-full max-w-md min-h-0 max-h-full overflow-y-auto overscroll-contain shadow-2xl"
+          className="friends-victory glass-strong rounded-3xl w-full max-w-md min-h-0 max-h-full overflow-y-auto overscroll-contain shadow-2xl"
         >
           {/* Header */}
           <div className={`relative p-4 sm:p-6 text-center border-b border-game-border ${

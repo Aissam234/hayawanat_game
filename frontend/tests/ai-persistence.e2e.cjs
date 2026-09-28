@@ -1,0 +1,42 @@
+const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const key='hayawanat.ai-round.v1',url=process.env.TEST_URL||'http://127.0.0.1:15178';
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+ try{
+  const page=await browser.newPage({viewport:{width:414,height:896},reducedMotion:'reduce'});
+  await page.addInitScript(()=>{Math.random=()=>0});
+  const snapshot=()=>page.evaluate(k=>JSON.parse(localStorage.getItem(k)),key);
+  await page.goto(url+'/ai');
+  await page.getByRole('button',{name:'🎮 ابدأ اللعب'}).click();
+  await page.getByLabel('💬 اسأل بطريقتك').fill('واش كيسبح؟');
+  const before=await snapshot();
+  await page.reload();
+  assert.equal(await page.getByLabel('💬 اسأل بطريقتك').inputValue(),'واش كيسبح؟');
+  assert.deepEqual((await snapshot()).round,before.round);
+  await page.getByRole('button',{name:'💬 أرسل سؤالي'}).click();
+  await page.getByRole('button',{name:'نعم، اسأل بهذا المعنى'}).click();
+  await page.reload();
+  await page.getByRole('heading',{name:'🤖 سؤال الخصم',exact:true}).waitFor();
+  const asked=await snapshot();assert.equal(asked.round.history.length,1);
+  await page.reload();
+  await page.getByRole('heading',{name:'🤖 سؤال الخصم',exact:true}).waitFor();
+  assert.deepEqual((await snapshot()).round,asked.round);
+  await page.getByRole('button',{name:'✅ نعم',exact:true}).click();
+  await page.getByRole('button',{name:'🎯 عرفت حيواني'}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'🐱 قطة',exact:true}).click();
+  await page.getByRole('button',{name:'تأكيد التخمين'}).click();
+  await page.getByRole('heading',{name:'🏆 لقد فزت!'}).waitFor();
+  await page.reload();
+  await page.getByRole('heading',{name:'🏆 لقد فزت!'}).waitFor();
+  assert.equal((await snapshot()).round.scores.human,1);
+  await page.getByLabel('مدة الجولة').selectOption('20');
+  await page.getByRole('button',{name:'🔄 جولة جديدة'}).click();
+  await page.evaluate(k=>{const s=JSON.parse(localStorage.getItem(k));s.round.started=Date.now()-21000;localStorage.setItem(k,JSON.stringify(s))},key);
+  await page.reload();
+  await page.getByRole('heading',{name:'⏳ انتهى الوقت — تعادل'}).waitFor();
+  assert.equal((await snapshot()).round.scores.human,1);
+  await page.evaluate(k=>localStorage.setItem(k,'{broken'),key);await page.reload();
+  await page.getByRole('button',{name:'🎮 ابدأ اللعب'}).waitFor();
+  console.log('PASS refresh: draft, secrets, pending answer, AI turn, history, victory score, expired deadline, corrupt save recovery');
+ }finally{await browser.close()}
+})().catch(e=>{console.error(e);process.exit(1)});

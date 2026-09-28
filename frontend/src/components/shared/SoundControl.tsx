@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react'
-import { Music2, Volume2, VolumeX, SlidersHorizontal } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import './SoundControl.css'
+import { useEffect, useRef, useState } from 'react'
+import { Music2, Volume2, VolumeX, SlidersHorizontal, AudioLines, X } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { getMusicVolume, getEffectsVolume, setMusicVolume, setEffectsVolume, muteSounds, soundsMuted, muteClicks, clicksAreMuted, stopSounds, stopAllSounds, refreshMusic, playSound, unlockSounds } from '../../services/gameSounds'
 
 export default function SoundControl() {
+  const {pathname}=useLocation()
+  const theme=pathname==='/ai'?'ai':/^\/(friends|lobby|game)(\/|$)/.test(pathname)?'friends':'home'
   const [musicMuted, setMusicMuted] = useState(soundsMuted)
   const [effectsMuted, setEffectsMuted] = useState(clicksAreMuted)
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const toggle = useRef<HTMLButtonElement>(null)
+  const reduced = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
   const [musicLevel, setMusicLevel] = useState(getMusicVolume)
   const [effectsLevel, setEffectsLevel] = useState(getEffectsVolume)
@@ -40,8 +49,17 @@ export default function SoundControl() {
       stopAllSounds()
     }
   }, [])
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) { setOpen(false); setExpanded(false) } }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); setExpanded(false); toggle.current?.focus() } }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
+  }, [open])
   const button = 'flex items-center justify-center w-11 h-11 shrink-0 rounded-full border border-game-border bg-game-surface px-3 text-game-text shadow-lg text-xs'
-  return <div className="fixed left-3 z-[60] flex gap-2" dir="rtl" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+  return <div ref={root} data-theme={theme} className="sound-dock fixed left-3 z-[60] flex flex-col gap-2" dir="rtl" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+    <AnimatePresence>{open && <motion.div id="sound-actions" key="sound-actions" className="flex flex-col gap-2" initial={reduced?false:{opacity:0,y:14,scale:.9}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:reduced?0:10,scale:reduced?1:.95}} transition={{duration:reduced?0:.2}}>
     {expanded && <section id="sound-volume-panel" data-sound-toggle aria-label="مستويات الصوت" className="absolute bottom-full mb-2 left-0 w-64 max-w-[calc(100vw-24px)] rounded-2xl border border-game-border bg-game-surface p-4 shadow-xl space-y-4">
       <label className="block text-sm text-game-text">الموسيقى — {Math.round(musicLevel * 100)}%
         <input aria-label="مستوى الموسيقى" type="range" min="0" max="100" value={Math.round(musicLevel * 100)} onChange={e => { const value = Number(e.target.value) / 100; setMusicLevel(value); setMusicVolume(value) }} className="w-full h-11 accent-violet-500" />
@@ -60,5 +78,7 @@ export default function SoundControl() {
       onClick={() => { const next = !effectsMuted; muteClicks(next); setEffectsMuted(next); if (!next) void unlockSounds().then(() => playSound('click')) }} className={button}>
       {effectsMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
     </button>
+    </motion.div>}</AnimatePresence>
+    <button ref={toggle} data-sound-toggle type="button" aria-label={open?'إغلاق أدوات الصوت':'أدوات الصوت'} aria-expanded={open} aria-controls="sound-actions" onClick={()=>{setOpen(!open);setExpanded(false)}} className={button+' focus-visible:outline focus-visible:outline-2'}>{open?<X size={20}/>:<AudioLines size={20}/>}</button>
   </div>
 }

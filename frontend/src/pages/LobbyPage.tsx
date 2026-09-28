@@ -40,6 +40,7 @@ export default function LobbyPage() {
   const hostId = room?.host_participant_id || null
 
   useEffect(() => {
+    let cancelled = false
     const init = async () => {
       let uuid = guestUuid
       let pId = participantId
@@ -57,6 +58,7 @@ export default function LobbyPage() {
 
       try {
         const roomData = await api.getRoom(roomCode!)
+        if (cancelled) return
         setRoom(roomData)
         setParticipants(roomData.participants)
         connectWs(roomCode!, pId)
@@ -64,17 +66,18 @@ export default function LobbyPage() {
         // Load current settings from server
         try {
           const settingsData = await api.getSettings(roomCode!)
-          if (settingsData.settings) {
+          if (!cancelled && settingsData.settings) {
             setSettings(settingsData.settings)
           }
         } catch {
           // Non-critical — ignore
         }
       } catch {
-        navigate('/')
+        if (!cancelled) navigate('/')
       }
     }
     init()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -147,8 +150,8 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-animated bg-dots p-4 pb-8">
-      <ConnectionStatus isConnected={isConnected} />
+    <div className="friends-lobby min-h-screen bg-animated bg-dots p-4 pb-8">
+
 
       <ConfirmModal
         isOpen={modalState.isOpen}
@@ -158,7 +161,8 @@ export default function LobbyPage() {
 
       <div className="max-w-lg mx-auto space-y-4">
         {/* Header Actions */}
-        <div className="flex justify-between items-center pt-2">
+        <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
+          <ConnectionStatus isConnected={isConnected} />
           <button
             onClick={() => setModalState({ isOpen: true, type: 'leave' })}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
@@ -179,7 +183,7 @@ export default function LobbyPage() {
 
         {/* Title */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center pb-2">
-          <div className="text-5xl mb-3">🐾</div>
+          <div className="friends-party-emblem text-5xl mb-3" aria-hidden="true">🦁 🦊</div><p className="friends-eyebrow">الشلّة تجتمع هنا</p>
           <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-indigo-400 to-violet-400 pb-2">
             غرفة الانتظار
           </h1>
@@ -188,7 +192,7 @@ export default function LobbyPage() {
         {/* Room code card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-5 border border-game-border text-center"
+          className="friends-room-ticket glass rounded-2xl p-5 border border-game-border text-center"
         >
           <p className="text-game-text-muted text-sm mb-2">كود الغرفة</p>
           <div className="flex items-center justify-center gap-3">
@@ -196,6 +200,7 @@ export default function LobbyPage() {
               {roomCode}
             </span>
             <button
+              aria-label="نسخ كود الغرفة"
               onClick={handleCopyCode}
               className="p-2 rounded-xl border border-game-border hover:border-game-primary transition-colors text-game-text-muted hover:text-game-primary"
             >

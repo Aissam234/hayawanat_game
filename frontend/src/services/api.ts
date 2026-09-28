@@ -2,6 +2,12 @@ export class ApiError extends Error { constructor(message: string, public status
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+const pendingRequests = new Set<AbortController>()
+export function cancelOnlineRequests() {
+  for (const controller of pendingRequests) controller.abort()
+  pendingRequests.clear()
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -21,24 +27,29 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     // Ignore parse errors
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  })
+  const controller = new AbortController()
+  pendingRequests.add(controller)
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: options?.signal || controller.signal,
+      headers,
+    })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'خطأ في الشبكة' }))
-    throw new ApiError(typeof err.detail === 'string' ? err.detail : 'تحقق من البيانات المدخلة', res.status)
-  }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'خطأ في الشبكة' }))
+      throw new ApiError(typeof err.detail === 'string' ? err.detail : 'تحقق من البيانات المدخلة', res.status)
+    }
 
-  return res.json()
+    return await res.json()
+  } finally { pendingRequests.delete(controller) }
 }
 
 // Auth endpoints
 export const authApi = {
   login: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   register: (data: { username: string; password: string; avatar_id: import('../components/auth/Avatar').AvatarId }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  getMe: () => request<any>('/api/auth/me'),
+  getMe: (signal?: AbortSignal) => request<any>('/api/auth/me', { signal }),
 }
 
 // Rooms

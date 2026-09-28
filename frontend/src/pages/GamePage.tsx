@@ -69,6 +69,7 @@ export default function GamePage() {
 
   // Init
   useEffect(() => {
+    let cancelled = false
     const init = async () => {
       let uuid = guestUuid
       let pId = participantId
@@ -91,6 +92,7 @@ export default function GamePage() {
           api.getCurrentRound(roomCode!, uuid),
           animals.length === 0 ? api.getAnimals() : Promise.resolve({ animals }),
         ])
+        if (cancelled) return
         setRoom(roomData)
         setParticipants(roomData.participants)
         if (questionsData.questions) setQuestions(questionsData.questions)
@@ -98,10 +100,11 @@ export default function GamePage() {
         if (animalsData.animals) setAnimals(animalsData.animals)
         connectWs(roomCode!, pId)
       } catch {
-        navigate('/')
+        if (!cancelled) navigate('/')
       }
     }
     init()
+    return () => { cancelled = true }
   }, [])
 
   // Auto-scroll question history
@@ -172,8 +175,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-animated bg-dots pb-8">
-      <ConnectionStatus isConnected={isConnected} />
+    <div className="friends-game min-h-screen bg-animated bg-dots pb-8">
       {round?.match && <div className="text-center text-sm text-violet-200 p-3" role="status">🏆 أول فوزين · {round.player1_name}: {round.match.player1_wins} — {round.player2_name}: {round.match.player2_wins}</div>}
 
       <ConfirmModal
@@ -222,8 +224,9 @@ export default function GamePage() {
 
       <div className="max-w-lg mx-auto p-4 space-y-4">
         {/* Header Actions */}
-        {isHost && !roundFinished && (
-          <div className="flex justify-end pt-2">
+        <div className="friends-game-actions flex items-center justify-between gap-2 pt-2">
+          <ConnectionStatus isConnected={isConnected} />
+          {isHost && !roundFinished && (
             <button
               onClick={() => setModalState({ isOpen: true, type: 'cancel' })}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/50 rounded-xl transition-colors"
@@ -231,8 +234,8 @@ export default function GamePage() {
               <Ban size={16} />
               إلغاء الجولة
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Header + Timer row */}
         <motion.div
@@ -259,7 +262,7 @@ export default function GamePage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="glass rounded-2xl p-5 border border-game-border text-center"
+          className="friends-animal-card glass rounded-2xl p-5 border border-game-border text-center"
         >
           {isPlayer && round?.opponent_animal ? (
             <>
@@ -312,7 +315,7 @@ export default function GamePage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className={`rounded-xl px-4 py-3 text-center border font-semibold ${
+            className={`friends-turn rounded-xl px-4 py-3 text-center border font-semibold ${
               isMyTurn && isPlayer
                 ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300 turn-pulse'
                 : 'bg-game-card border-game-border text-game-text-muted'

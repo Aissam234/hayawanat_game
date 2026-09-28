@@ -35,7 +35,7 @@ export default function ParticipantList({
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.05 }}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-300 ${
+          className={`friends-participant relative flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-300 ${
             p.id === currentTurnId
               ? 'bg-indigo-500/20 border-indigo-500/50 glow-primary'
               : p.id === myId
