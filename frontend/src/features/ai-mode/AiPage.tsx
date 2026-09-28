@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { QUESTION_PREFIX, formatQuestion, chooseAiAction, getAnimal, getQuestion, questions } from './engine'
 import { interpretArabic, meaningLabel, Interpretation } from './arabic'
-import { Event, Round, Settings, startRound, transition, visibleRound } from './round'
+import { Event, Round, Settings, startRound, transition, visibleRound, buildAiGuessMessage } from './round'
 import { playSound } from '../../services/gameSounds'
 import './AiPage.css'
 import { loadAiSave, saveAiRound } from './persistence'
@@ -42,12 +42,25 @@ export default function AiPage(){
   useEffect(()=>{
     if(!round||!['answering','thinking'].includes(round.phase))return
     const captured=round
+    let inner:ReturnType<typeof setTimeout>|undefined
     const timer=window.setTimeout(()=>{
-      const event:Event=captured.phase==='answering'?{type:'answer-human',now:Date.now()}:
-        {type:'ai-action',now:Date.now(),action:chooseAiAction({candidates:captured.candidates.map(getAnimal),asked:captured.asked,difficulty:captured.settings.difficulty},Math.random)}
-      setRound(old=>old?.id===captured.id?transition(old,event):old)
+      if(captured.phase==='answering'){
+        setRound(old=>old?.id===captured.id?transition(old,{type:'answer-human',now:Date.now()}):old)
+      } else {
+        const action=chooseAiAction({candidates:captured.candidates.map(getAnimal),asked:captured.asked,difficulty:captured.settings.difficulty},Math.random)
+        if(action.type==='guess'){
+          // Show personality message first, then fire the guess after a brief dramatic pause
+          const msg=buildAiGuessMessage(action,Math.random)
+          setRound(old=>old?.id===captured.id?{...old,message:msg}:old)
+          inner=window.setTimeout(()=>{
+            setRound(old=>old?.id===captured.id?transition(old,{type:'ai-action',now:Date.now(),action}):old)
+          },1200)
+        } else {
+          setRound(old=>old?.id===captured.id?transition(old,{type:'ai-action',now:Date.now(),action}):old)
+        }
+      }
     },round.settings.difficulty==='easy'?1100:800)
-    return ()=>clearTimeout(timer)
+    return ()=>{clearTimeout(timer);clearTimeout(inner)}
   },[round?.id,round?.phase,round?.pending])
   useEffect(()=>{if(guessing)dialog.current?.showModal();else dialog.current?.close()},[guessing])
   useEffect(()=>{
