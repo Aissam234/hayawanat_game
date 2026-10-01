@@ -1,0 +1,566 @@
+{
+  "catalogueVersion": 2,
+  "animalCount": 120,
+  "questionCount": 69,
+  "seedCount": 20,
+  "groups": [],
+  "fields": [
+    {
+      "id": "is_mammal",
+      "yes": 61,
+      "no": 59
+    },
+    {
+      "id": "is_domestic",
+      "yes": 13,
+      "no": 107
+    },
+    {
+      "id": "has_fur",
+      "yes": 54,
+      "no": 66
+    },
+    {
+      "id": "has_horns",
+      "yes": 11,
+      "no": 109
+    },
+    {
+      "id": "has_tail",
+      "yes": 95,
+      "no": 25
+    },
+    {
+      "id": "can_fly",
+      "yes": 29,
+      "no": 91
+    },
+    {
+      "id": "can_swim",
+      "yes": 66,
+      "no": 54
+    },
+    {
+      "id": "is_nocturnal",
+      "yes": 52,
+      "no": 68
+    },
+    {
+      "id": "lives_in_groups",
+      "yes": 61,
+      "no": 59
+    },
+    {
+      "id": "is_african",
+      "yes": 55,
+      "no": 65
+    },
+    {
+      "id": "habitat_water",
+      "yes": 32,
+      "no": 88
+    },
+    {
+      "id": "habitat_land",
+      "yes": 49,
+      "no": 71
+    },
+    {
+      "id": "habitat_desert",
+      "yes": 6,
+      "no": 114
+    },
+    {
+      "id": "habitat_jungle",
+      "yes": 20,
+      "no": 100
+    },
+    {
+      "id": "habitat_arctic",
+      "yes": 3,
+      "no": 117
+    },
+    {
+      "id": "habitat_air",
+      "yes": 0,
+      "no": 120
+    },
+    {
+      "id": "habitat_domestic",
+      "yes": 10,
+      "no": 110
+    },
+    {
+      "id": "size_small",
+      "yes": 70,
+      "no": 50
+    },
+    {
+      "id": "size_medium",
+      "yes": 22,
+      "no": 98
+    },
+    {
+      "id": "size_large",
+      "yes": 21,
+      "no": 99
+    },
+    {
+      "id": "size_huge",
+      "yes": 7,
+      "no": 113
+    },
+    {
+      "id": "diet_herbivore",
+      "yes": 40,
+      "no": 80
+    },
+    {
+      "id": "diet_carnivore",
+      "yes": 48,
+      "no": 72
+    },
+    {
+      "id": "diet_omnivore",
+      "yes": 30,
+      "no": 90
+    },
+    {
+      "id": "has_wings",
+      "yes": 33,
+      "no": 87
+    },
+    {
+      "id": "has_feathers",
+      "yes": 24,
+      "no": 96
+    },
+    {
+      "id": "lays_eggs",
+      "yes": 55,
+      "no": 65
+    },
+    {
+      "id": "has_scales",
+      "yes": 13,
+      "no": 107
+    },
+    {
+      "id": "has_shell",
+      "yes": 3,
+      "no": 117
+    },
+    {
+      "id": "has_spines",
+      "yes": 5,
+      "no": 115
+    },
+    {
+      "id": "has_stripes",
+      "yes": 13,
+      "no": 107
+    },
+    {
+      "id": "has_spots",
+      "yes": 11,
+      "no": 109
+    },
+    {
+      "id": "has_long_ears",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "has_trunk",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "has_tusks",
+      "yes": 4,
+      "no": 116
+    },
+    {
+      "id": "has_mane",
+      "yes": 5,
+      "no": 115
+    },
+    {
+      "id": "has_tail_tuft",
+      "yes": 4,
+      "no": 116
+    },
+    {
+      "id": "has_pouch",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "has_long_neck",
+      "yes": 12,
+      "no": 108
+    },
+    {
+      "id": "has_large_bill",
+      "yes": 8,
+      "no": 112
+    },
+    {
+      "id": "has_crest",
+      "yes": 6,
+      "no": 114
+    },
+    {
+      "id": "has_flat_tail",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "is_black_white",
+      "yes": 8,
+      "no": 112
+    },
+    {
+      "id": "class_bird",
+      "yes": 24,
+      "no": 96
+    },
+    {
+      "id": "class_reptile",
+      "yes": 8,
+      "no": 112
+    },
+    {
+      "id": "class_amphibian",
+      "yes": 3,
+      "no": 117
+    },
+    {
+      "id": "class_fish",
+      "yes": 5,
+      "no": 115
+    },
+    {
+      "id": "class_insect",
+      "yes": 8,
+      "no": 112
+    },
+    {
+      "id": "class_arachnid",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "class_crustacean",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "class_mollusk",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "legs_0",
+      "yes": 16,
+      "no": 104
+    },
+    {
+      "id": "legs_2",
+      "yes": 29,
+      "no": 91
+    },
+    {
+      "id": "legs_4",
+      "yes": 61,
+      "no": 59
+    },
+    {
+      "id": "legs_6",
+      "yes": 8,
+      "no": 112
+    },
+    {
+      "id": "legs_8",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "legs_10",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "legs_many",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "humps_1",
+      "yes": 1,
+      "no": 119
+    },
+    {
+      "id": "humps_2",
+      "yes": 1,
+      "no": 119
+    },
+    {
+      "id": "region_asia",
+      "yes": 59,
+      "no": 61
+    },
+    {
+      "id": "region_europe",
+      "yes": 50,
+      "no": 70
+    },
+    {
+      "id": "region_north_america",
+      "yes": 27,
+      "no": 93
+    },
+    {
+      "id": "region_south_america",
+      "yes": 16,
+      "no": 104
+    },
+    {
+      "id": "region_oceania",
+      "yes": 12,
+      "no": 108
+    },
+    {
+      "id": "region_antarctica",
+      "yes": 3,
+      "no": 117
+    },
+    {
+      "id": "diet_detritivore",
+      "yes": 2,
+      "no": 118
+    },
+    {
+      "id": "has_beard",
+      "yes": 4,
+      "no": 116
+    },
+    {
+      "id": "is_predator",
+      "yes": 79,
+      "no": 41
+    }
+  ],
+  "results": {
+    "easy": {
+      "easy": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 6.23375,
+        "medianQuestions": 6,
+        "worstQuestions": 9,
+        "worstActions": 10,
+        "averageActions": 7.23375,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 5.40375,
+        "medianQuestions": 5,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 6.40375,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "medium": {
+      "easy": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 6.2375,
+        "medianQuestions": 6,
+        "worstQuestions": 10,
+        "worstActions": 11,
+        "averageActions": 7.2375,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 5.405,
+        "medianQuestions": 5,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 6.405,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "hard": {
+      "easy": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 6.19375,
+        "medianQuestions": 6,
+        "worstQuestions": 10,
+        "worstActions": 11,
+        "averageActions": 7.19375,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 800,
+        "successRate": 1,
+        "averageQuestions": 5.4025,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4025,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "random": {
+      "easy": {
+        "runs": 2400,
+        "successRate": 1,
+        "averageQuestions": 8.148333333333333,
+        "medianQuestions": 8,
+        "worstQuestions": 12,
+        "worstActions": 13,
+        "averageActions": 9.148333333333333,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 2400,
+        "successRate": 1,
+        "averageQuestions": 6.960416666666666,
+        "medianQuestions": 7,
+        "worstQuestions": 9,
+        "worstActions": 10,
+        "averageActions": 7.960416666666666,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 120,
+        "successRate": 1,
+        "averageQuestions": 6.941666666666666,
+        "medianQuestions": 7,
+        "worstQuestions": 8,
+        "worstActions": 9,
+        "averageActions": 7.941666666666666,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    }
+  },
+  "comparisons": {
+    "easy": {
+      "balanced": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "medium": {
+      "balanced": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "hard": {
+      "balanced": {
+        "runs": 40,
+        "successRate": 1,
+        "averageQuestions": 5.4,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 6.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "random": {
+      "balanced": {
+        "runs": 120,
+        "successRate": 1,
+        "averageQuestions": 6.958333333333333,
+        "medianQuestions": 7,
+        "worstQuestions": 8,
+        "worstActions": 9,
+        "averageActions": 7.958333333333333,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    }
+  }
+}

@@ -1,349 +1,147 @@
-import { answerHumanQuestion, getQuestion } from './engine'
-
-export type Meaning = { questionId: string; negated: boolean }
-export type Interpretation =
-  | { kind: 'understood'; parts: Meaning[]; text: string }
-  | { kind: 'clarify'; message: string; choices: Meaning[] }
-
-export function normalizeArabic(text: string): string {
-  return text
-    .normalize('NFKC')
-    // Strip tashkeel (diacritics)
-    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
-    // Normalise alef variants → plain alef
-    .replace(/[أإآٱ]/g, 'ا')
-    // Normalise ya → ya-without-dots; ta-marbuta → ha
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    // Strip punctuation
-    .replace(/[؟?!.،,…]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
+import { extraQuestions } from './catalogueQuestions'
+import { CatalogueVersion, answerHumanQuestion, getQuestion } from './engine'
+import { lexicon, phrases, vocabulary, oneEdit } from './lexicon'
+export type Meaning = {questionId:string;negated:boolean}
+export type Interpretation = {kind:'understood';parts:Meaning[];text:string}|{kind:'clarify';message:string;choices:Meaning[]}
+export type SemanticMeaning = Meaning & {confidence:1;source:'exact-or-reviewed-alias'}
+export function detectScript(text:string):'arabic'|'arabizi'|'mixed' {
+ const ar=/[\u0600-\u06ff]/.test(text), latin=/[a-z]/i.test(text)
+ return ar&&latin?'mixed':latin?'arabizi':'arabic'
 }
-
-// ---------------------------------------------------------------------------
-// Verb prefixes — covers MSA, Gulf, Levantine, Maghrebi dialects
-//   يـ / كيـ / تـ / نـ / اـ  + verb root
-// ---------------------------------------------------------------------------
-const LIVE_VERBS =
-  '(?:يعيش|كيعيش|يقطن|يتواجد|يوجد|يسكن|كيسكن|كيقطن|يكون|كيكون|نعيش|كنعيش|نسكن|كنسكن|عايش|ساكن|نسكن)'
-const FLY_VERBS =
-  '(?:يطير|كيطير|يحلق|كيحلق|يتطير|اطير|يقدر(?:ان)? يطير|يستطيع الطيران|يمكنه الطيران|يقدر يحلق|قادر يطير|قادر ع الطيران|يعرف يطير|عندو جناح)'
-const SWIM_VERBS =
-  '(?:يسبح|كيسبح|يعوم|كيعوم|يسبح|اسبح|نسبح|كنسبح|يقدر(?:ان)? يسبح|يستطيع السباحه|يمكنه السباحه|يعرف يسبح|قادر يسبح)'
-const NOCTURN_VERBS =
-  '(?:ينشط|كينشط|يخرج|كيخرج|يصطاد|كيصطاد|يسعي|يتحرك|يعيش نشاطه|يكون نشيط)'
-const NOCTURN_TIME = '(?:ليلا|بالليل|فالليل|في الليل|في الليله|بالعتمه|في الظلام)'
-const GROUP_VERBS =
-  '(?:يعيش|كيعيش|يوجد|يتواجد|كيكون|نعيش|كنعيش|يسكن|يكون)'
-const GROUP_NOUNS =
-  '(?:في مجموعات|فمجموعات|مع جماعه|في قطيع|في قطعان|مع قطيعه|باسراب|في اسراب|مع اسراب|في عشيره|مع عشيره|في جماعه)'
-const EAT_VERBS =
-  '(?:ياكل|كياكل|كيوكل|يتغذي|يتغذي علي|يعيش علي|اكل|ياكل من|يتناول|يقتات علي)'
-
-// ---------------------------------------------------------------------------
-// Full-clause grammar. Every recognised meaning is shown for confirmation
-// before an answer is requested. Unmatched text is never silently ignored.
-// ---------------------------------------------------------------------------
-const forms: [string, RegExp][] = [
-  // ── Taxonomy ───────────────────────────────────────────────────────────────
-  [
-    'is_mammal',
-    /^(?:من )?(?:الثدييات|ثدييات|ثديي|من الثدييات|حيوان ثديي|ينتمي للثدييات|صنفه ثديي)$/,
-  ],
-  [
-    'is_domestic',
-    /^(?:(?:حيوان )?(?:اليف|مستانس|مؤلوف|اهلي|داجن|مدجن)|يمكن تربيته في البيت|نقدر نربيه فالدار|نقدر نربيه|يتربي في البيت|ينتمي للحيوانات الاليفه|حيوان من الحيوانات الاليفه)$/,
-  ],
-  // ── Physical features ──────────────────────────────────────────────────────
-  [
-    'has_fur',
-    /^(?:(?:عنده|لديه|له|عندو|لده|الو) (?:فرو|شعر|صوف|وبر|ريش)|يغطي (?:جسمه|جسمي) (?:الفرو|الشعر|الصوف|الوبر)|جسمه مغطي بالفرو|عنده وبر|له وبر|مكسي بالشعر|له ريشه)$/,
-  ],
-  [
-    'has_horns',
-    /^(?:(?:عنده|لديه|له|عندو|لده|الو) (?:قرون|قرن)|فيه قرون|له قرون|عندو قرون)$/,
-  ],
-  [
-    'has_tail',
-    /^(?:(?:عنده|لديه|له|عندو|لده|الو) (?:ذيل|ديل|دنب)|فيه ذيل|له ذيل|عندو ذيل)$/,
-  ],
-  // ── Locomotion ─────────────────────────────────────────────────────────────
-  ['can_fly', new RegExp(`^${FLY_VERBS}$`)],
-  ['can_swim', new RegExp(`^${SWIM_VERBS}$`)],
-  // ── Behaviour ──────────────────────────────────────────────────────────────
-  ['is_nocturnal', new RegExp(`^${NOCTURN_VERBS} ${NOCTURN_TIME}$`)],
-  ['lives_in_groups', new RegExp(`^${GROUP_VERBS} ${GROUP_NOUNS}$`)],
-  // ── Habitat ────────────────────────────────────────────────────────────────
-  [
-    'habitat_water',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في الماء|فالماء|فالما|ف الما|في المياه|بالماء|في البحر|بالبحر|في النهر|في البحيره|بحري|نهري)$`,
-    ),
-  ],
-  [
-    'habitat_land',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في البر|فالبر|علي اليابسه|علي البر|في اليابسه|علي الارض|في البريه|فالبريه|البريه)$`,
-    ),
-  ],
-  [
-    'habitat_desert',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في الصحراء|فالصحراء|فالصحرا|في الصحراء|في الرمال|فالرمال)$`,
-    ),
-  ],
-  [
-    'habitat_jungle',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في الغابه|فالغابه|في الادغال|فالادغال|في الغابات|في الغابه الاستوائيه)$`,
-    ),
-  ],
-  [
-    'habitat_arctic',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في القطب|فالقطب|في المناطق القطبيه|في مناطق باردهبرد|في القطب الشمالي|في القطب الجنوبي|في المناطق الثلجيه|في الثلج)$`,
-    ),
-  ],
-  [
-    'habitat_domestic',
-    new RegExp(
-      `^${LIVE_VERBS} (?:في المنزل|في البيت|فالبيت|فالدار|في المزرعه|فالضيعه|في المزارع|في الحظيره|مع البشر)$`,
-    ),
-  ],
-  [
-    'is_african',
-    /^(?:موطنه افريقيا|من افريقيا|افريقي|يعيش في افريقيا|ينتمي لافريقيا|من الحيوانات الافريقيه|اصله من افريقيا)$/,
-  ],
-  // ── Size ───────────────────────────────────────────────────────────────────
-  [
-    'size_small',
-    /^(?:(?:حجمه |حجمي |حيوان )?(?:صغير|صغيور|صغير الحجم|صغير جدا|صغير نسبيا|من الحيوانات الصغيره))$/,
-  ],
-  [
-    'size_medium',
-    /^(?:(?:حجمه |حجمي |حيوان )?(?:متوسط|متوسط الحجم|وسط|وسطاني|بين الصغير والكبير))$/,
-  ],
-  [
-    'size_large',
-    /^(?:(?:حجمه |حجمي |حيوان )?(?:كبير|كبير الحجم|ضخم نسبيا|من الحيوانات الكبيره))$/,
-  ],
-  [
-    'size_huge',
-    /^(?:(?:حجمه |حجمي |حيوان )?(?:ضخم|ضخم جدا|ضخم الحجم|عملاق|كبير جدا|من الحيوانات الضخمه))$/,
-  ],
-  // ── Diet ───────────────────────────────────────────────────────────────────
-  [
-    'diet_carnivore',
-    new RegExp(
-      `^(?:${EAT_VERBS} (?:اللحم|اللحوم|الحيوانات|لحوم الحيوانات)|لاحم|آكل لحوم|من اكله اللحوم|مفترس|يفترس الحيوانات|يصطاد ويأكل)$`,
-    ),
-  ],
-  [
-    'diet_herbivore',
-    new RegExp(
-      `^(?:${EAT_VERBS} (?:النباتات|الاعشاب|الحشائش|النبات|العشب|الورق|الخضروات|التمر|الفاكهه)|عشبي|ناباتي|من اكله النباتات|يرعي|يقتات بالنبات)$`,
-    ),
-  ],
-  [
-    'diet_omnivore',
-    new RegExp(
-      `^(?:${EAT_VERBS} (?:النباتات والحيوانات|اللحوم والنباتات|اللحم والنبات|الكل|كل شي)|كل اكل|ياكل كل شي|ياكل اللحم والنبات|من اكله اللحم والعشب)$`,
-    ),
-  ],
-]
-
-function clause(text: string): Meaning | undefined {
-  // Strip leading question particles (هل / وهل / أ)
-  let s = text
-    .replace(/^(?:هل|وهل|أ) /, '')
-    // Strip subject pronoun (هو / انا / هي / الحيوان / حيواني / هذا الحيوان / الحيوان عندي)
-    .replace(
-      /^(?:هو |انا |هي |الحيوان |حيواني |هذا الحيوان |الحيوان عندي |الحيوان هذا ) /,
-      '',
-    )
-
-  let negated = false
-  // Negation prefixes: لا / لس / لم / ليس / ما / مو / مش / مو / ماش
-  if (/^(?:لا|لس|لسه|لم|ليس|ما|مو|مش|ماش) /.test(s)) {
-    negated = true
-    s = s.replace(/^(?:لا|لس|لسه|لم|ليس|ما|مو|مش|ماش) /, '')
-  } else if (/^ما .+ش$/.test(s)) {
-    // Maghrebi negation: ما...ش
-    negated = true
-    s = s.slice(3, -1).trim()
+export function normalizeArabic(text:string):string {
+ return text.normalize('NFKC').toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[؟?!.،,…]/g,' ').replace(/\s+/g,' ').trim()
+}
+const clarify=(message:string,choices:Meaning[]=[]):Interpretation=>({kind:'clarify',message,choices})
+const unsupported=()=>clarify('هاد الصفة مازال ما كايناش فمعلومات اللعبة 😅 جرّب تسول على الموطن، الحجم، الغذاء، السباحة، الطيران أو الصفات الجسدية. ما تستهلكش دورك.')
+const ambiguous=()=>clarify('كتقصد واش الماء هو الموطن ديالو، ولا واش كيقدر يسبح؟',[{questionId:'habitat_water',negated:false},{questionId:'can_swim',negated:false}])
+const habitats:Record<string,string>={WATER:'water',LAND:'land',DESERT:'desert',JUNGLE:'jungle',ARCTIC:'arctic',AIR:'air',HOME:'domestic'}
+const sizes:Record<string,string>={SMALL:'small',MEDIUM:'medium',LARGE:'large',HUGE:'huge'}
+const features:Record<string,string>={FUR:'has_fur',HORNS:'has_horns',TAIL:'has_tail'}
+// Token-level negation, including attached Darija ma...ch/m...ش, only if the
+// recovered verb exists in the vocabulary. Never replace digits globally.
+function negativeVerb(word:string):string|undefined {
+ for(const [prefix,suffix] of [['ma','ch'],['ما','ش'],['م','ش']]){
+  if(word.startsWith(prefix)&&word.endsWith(suffix)){
+   const inner=word.slice(prefix.length,-suffix.length)
+   if(lexicon.has(inner))return inner
   }
-
-  const form = forms.find(([, pattern]) => pattern.test(s))
-  return form ? { questionId: form[0], negated } : undefined
+ }
+ return undefined
 }
-
-export function interpretArabic(raw: string): Interpretation {
-  const text = normalizeArabic(raw).replace(/^هل الحيوان عندي\s*/, '')
-
-  const unsupported: Interpretation = {
-    kind: 'clarify',
-    message:
-      'ما فهمت السؤال بما يكفي. حاول صياغة سؤال مثل «واش يسبح؟» أو استخدم الأسئلة الجاهزة. لم أتفلسف، محاولة.',
-    choices: [],
+function tokenize(text:string):{tokens:string[];unknown:string[]} {
+ const words=text.split(' '),tokens:string[]=[],unknown:string[]=[]
+ for(let i=0;i<words.length;i++){
+  const phrase=phrases.find(([p])=>p.every((w,j)=>words[i+j]===w))
+  if(phrase){tokens.push(phrase[1]);i+=phrase[0].length-1;continue}
+  let word=words[i]
+  if((word==='ma'||word==='ما')&&i+1<words.length){
+   const next=words[i+1],suffix=word==='ma'?'ch':'ش'
+   const stem=next.endsWith(suffix)?next.slice(0,-suffix.length):''
+   if(lexicon.has(stem)){tokens.push('NOT',lexicon.get(stem)!);i++;continue}
   }
-
-  if (!text || text.length > 200) return unsupported
-
-  // Special case: asking about "الحيوانات" in general → clarify
-  if (/(?:حديث الحيوانات|حداش الحيوانات|الضائعات|التام)/.test(text))
-    return {
-      kind: 'clarify',
-      message:
-        'فهمك محتاج تسألني عن حديث الحيوانات. هذا سيتدخل في طبيعة اللعبة. يسألني عن مواطن أو ما كان منزل حيوان. سؤالما ما استطعت الجواب.',
-      choices: [{ questionId: 'is_domestic', negated: false }],
-    }
-
-  // Try single clause
-  const one = clause(text)
-  if (one) return { kind: 'understood', parts: [one], text: raw.trim() }
-
-  // Special: swimming/aquatic ambiguity
-  if (
-    /^(?:هل |وهل |ا )?(?:هو |الحيوان )?(?:مائي|يعيش في الماء و|كيعيش في الماء و|اعيش في الماء و|يعيش فالماء و|موجود في الماء)$/.test(
-      text,
-    )
-  )
-    return {
-      kind: 'clarify',
-      message:
-        'تقصد ثلاثة مواطن مائية؟ هل تسأل عن البحر والمياه العذبة؟ لا أستطيع تحديد مكان إقامة بسؤال واحد مباشر. يسألني عن الموطن أو قدرة السباحة.',
-      choices: [
-        { questionId: 'habitat_water', negated: false },
-        { questionId: 'can_swim', negated: false },
-      ],
-    }
-
-  // Eating meat AND plants → both diet_carnivore AND diet_herbivore
-  if (
-    /^(?:هل |وهل )?(?:هو |الحيوان )?(?:ياكل|كياكل|كيوكل|يتغذي علي|اكل|ياكل من) (?:اللحم|اللحوم) (?:و|وكذلك) (?:النباتات|الاعشاب|الخضروات)$/.test(
-      text,
-    )
-  )
-    return {
-      kind: 'understood',
-      parts: [
-        { questionId: 'diet_carnivore', negated: false },
-        { questionId: 'diet_herbivore', negated: false },
-      ],
-      text: raw.trim(),
-    }
-
-  // Try two-part compound (joined by و / ولا / وكذلك)
-  const pieces = text.split(/\s+(?:و\s*|ولا\s+|وكذلك\s+)/)
-  if (pieces.length === 2) {
-    const parts = pieces.map(clause)
-    if (parts.every(Boolean) && parts[0]!.questionId !== parts[1]!.questionId)
-      return { kind: 'understood', parts: parts as Meaning[], text: raw.trim() }
+  // ma is water only following a location preposition; otherwise unknown.
+  if(word==='ma'&&tokens[tokens.length-1]==='IN'){tokens.push('WATER');continue}
+  const neg=negativeVerb(word)
+  if(neg){tokens.push('NOT',lexicon.get(neg)!);continue}
+  if(!lexicon.has(word)&&word.startsWith('و')&&(lexicon.has(word.slice(1))||negativeVerb(word.slice(1)))){
+   tokens.push('AND');word=word.slice(1)
+   const n=negativeVerb(word);if(n){tokens.push('NOT',lexicon.get(n)!);continue}
   }
-
-  return unsupported
+  const token=lexicon.get(word)
+  if(token)tokens.push(token);else{tokens.push('?');unknown.push(word)}
+ }
+ return {tokens,unknown}
 }
-
-export function meaningLabel(part: Meaning): string {
-  const label = getQuestion(part.questionId)?.text || ''
-  return part.negated ? `هل الرجس صحيح: «${label}»؟` : label
+function clause(input:string[]):SemanticMeaning|undefined {
+ const t=[...input]
+ const head=()=>t[0]
+ if(head()==='Q')t.shift()
+ if(head()==='SUB')t.shift()
+ let negated=false
+ if(head()==='NOT'){negated=true;t.shift()}
+ if(head()==='ANIMAL')t.shift()
+ // A copula only introduces a property; unknown words and double negation remain rejected.
+ const classified=head()==='CLASSIFY'
+ if(classified){t.shift();if(head()==='ANIMAL')t.shift()}
+ if(head()==='FROM')t.shift()
+ if(classified && (t.length!==1 || !(head()?.startsWith('EXTRA:') || ['MAMMAL','DOMESTIC','CARNIVORE','HERBIVORE',...Object.keys(sizes)].includes(head()))))return undefined
+ const one=(questionId:string):SemanticMeaning=>({questionId,negated,confidence:1,source:'exact-or-reviewed-alias'})
+ if(head()==='CAN'){t.shift();if(head()==='TO')t.shift();if(!['SWIM','FLY'].includes(head()))return undefined}
+ if(t.length===1 && head()?.startsWith('EXTRA:')) return one(head().slice(6))
+ if(t.length===2 && head()==='HAVE' && /^EXTRA:(?:has_|legs_|humps_)/.test(t[1])) return one(t[1].slice(6))
+ if(t.length===2 && head()==='ORIGIN' && t[1].startsWith('EXTRA:region_')) return one(t[1].slice(6))
+ if(t.length===3 && ['LIVE','ORIGIN'].includes(head()) && ['IN','FROM'].includes(t[1]) && t[2].startsWith('EXTRA:region_')) return one(t[2].slice(6))
+ if(t.length===1){
+  const direct:Record<string,string>={MAMMAL:'is_mammal',DOMESTIC:'is_domestic',SWIM:'can_swim',FLY:'can_fly',AFRICA:'is_african',HERBIVORE:'diet_herbivore',CARNIVORE:'diet_carnivore'}
+  if(direct[head()])return one(direct[head()])
+  if(sizes[head()])return one('size_'+sizes[head()])
+ }
+ if(t.length===2&&head()==='HAVE'&&features[t[1]])return one(features[t[1]])
+ if(head()==='SIZE'&&t.length===2&&sizes[t[1]])return one('size_'+sizes[t[1]])
+ if(head()==='ACTIVE'){
+  t.shift();if(head()==='IN')t.shift()
+  if(t.length===1&&head()==='NIGHT')return one('is_nocturnal')
+  return undefined
+ }
+ if(head()==='LIVE'||head()==='ORIGIN'){
+  t.shift();if(['IN','WITH','FROM'].includes(head()))t.shift()
+  if(t.length!==1)return undefined
+  if(head()==='GROUP')return one('lives_in_groups')
+  if(head()==='AFRICA')return one('is_african')
+  if(habitats[head()])return one('habitat_'+habitats[head()])
+ }
+ if(head()==='EAT' && t.length===2 && t[1]==='EXTRA:diet_detritivore')return one('diet_detritivore')
+ if(head()==='EAT'){
+  if(t[t.length-1]==='TOGETHER')t.pop()
+  t.shift();if(head()==='IN')t.shift()
+  if(t.length===1&&['MEAT','PLANTS'].includes(head()))return one(head()==='MEAT'?'diet_carnivore':'diet_herbivore')
+  if(t.length===3&&t[1]==='AND'&&new Set([head(),t[2]]).size===2&&[head(),t[2]].every(x=>['MEAT','PLANTS'].includes(x)))return one('diet_omnivore')
+ }
+ return undefined
 }
-
-export function replyToMeanings(parts: Meaning[], humanSecret: number): string {
-  return parts
-    .map(part => {
-      const positive = answerHumanQuestion(part.questionId, humanSecret) === 'yes'
-      const agrees = part.negated ? !positive : positive
-
-      const natural: Record<string, [string, string]> = {
-        is_mammal: [
-          'حيواني من الثدييات.',
-          'حيواني ليس من الثدييات.',
-        ],
-        can_swim: [
-          'حيواني يستطيع السباحة بحسب طبيعة اللعبة.',
-          'طبيعة حيواني لا تُمكّن حيوانه يستطيع السباحة.',
-        ],
-        can_fly: [
-          'حيواني يستطيع الطيران بحسب طبيعة اللعبة.',
-          'حيواني لا يستطيع الطيران بحسب طبيعة اللعبة.',
-        ],
-        has_fur: [
-          'جسم حيواني مغطى بالفراء أو الشعر.',
-          'حيواني ليس مغطىً بالفراء.',
-        ],
-        has_horns: [
-          'حيواني لديه قرون.',
-          'حيواني ليس لديه قرون.',
-        ],
-        has_tail: [
-          'حيواني لديه ذيل.',
-          'حيواني ليس لديه ذيل.',
-        ],
-        is_domestic: [
-          'حيواني مستأنَس ويُمكن تربيته.',
-          'حيواني ليس مستأنَساً — يعيش في البرية.',
-        ],
-        is_nocturnal: [
-          'حيواني ينشط ليلاً.',
-          'حيواني ليس ليلياً — ينشط نهاراً.',
-        ],
-        lives_in_groups: [
-          'حيواني يعيش في مجموعات أو قطعان.',
-          'حيواني يعيش منفرداً عادةً.',
-        ],
-        is_african: [
-          'موطن حيواني أفريقيا.',
-          'حيواني ليس أفريقياً بالأساس.',
-        ],
-        habitat_water: [
-          'الماء هو موطن حيواني في طبيعة اللعبة.',
-          'الماء ليس الموطن المُختار لحيواني.',
-        ],
-        habitat_land: [
-          'حيواني يعيش على اليابسة.',
-          'اليابسة ليست موطنه الأساسي.',
-        ],
-        habitat_desert: [
-          'حيواني من حيوانات الصحراء.',
-          'حيواني لا يعيش في الصحراء.',
-        ],
-        habitat_jungle: [
-          'حيواني من حيوانات الغابات.',
-          'حيواني لا يعيش في الغابة.',
-        ],
-        habitat_arctic: [
-          'حيواني يعيش في المناطق الباردة والقطبية.',
-          'حيواني لا يعيش في المناطق الباردة.',
-        ],
-        habitat_domestic: [
-          'حيواني يعيش مع البشر في المنازل أو المزارع.',
-          'حيواني لا يُربَّى في المنازل أو المزارع.',
-        ],
-        diet_carnivore: [
-          'حيواني مُفترِس يأكل لحوم الحيوانات.',
-          'حيواني ليس مُفترِساً، قد يأكل النبات أيضاً.',
-        ],
-        diet_herbivore: [
-          'حيواني يأكل النباتات فقط.',
-          'حيواني ليس عُشبياً فحسب.',
-        ],
-        diet_omnivore: [
-          'حيواني يأكل كل شيء — لحوماً ونباتات.',
-          'حيواني ليس كلّ الأكل.',
-        ],
-      }
-
-      const explanation = natural[part.questionId]?.[positive ? 0 : 1]
-      return explanation
-        ? `${agrees ? 'نعم ✓' : 'لا ✗'} ${explanation}`
-        : `${meaningLabel(part)} ${agrees ? 'نعم ✓' : 'لا ✗'}${
-            part.negated
-              ? ` (النفي الصحيح: ${positive ? 'موجودة' : 'غير موجودة'})`
-              : ''
-          }`
-    })
-    .join('\n')
+const meaning=(p:SemanticMeaning):Meaning=>({questionId:p.questionId,negated:p.negated})
+export function interpretArabic(raw:string):Interpretation {
+ if(!raw.trim()||raw.length>200)return unsupported()
+ const script=detectScript(raw)
+ // Latin normalization never substitutes digits; mixed input uses the same controlled lexicon.
+ const normalized=script==='arabizi'?raw.normalize('NFKC').toLowerCase().replace(/[?!.,]/g,' ').replace(/\s+/g,' ').trim():normalizeArabic(raw)
+ const text=normalized.replace(/^(?:هاد الحيوان عندي|هل الحيوان عندي)\s*/,'')
+ if(/حديقه الحيوانات|حدائق الحيوانات/.test(text))return clarify('فهمت، كتسول على حديقة الحيوانات. هاد المعلومة كتختلف بين الحدائق وما كايناش فبطاقة اللعبة. جرّب واش الحيوان أليف؛ دورك باقي ليك.',[{questionId:'is_domestic',negated:false}])
+ const {tokens,unknown}=tokenize(text)
+ if(unknown.length){
+  // Only offer a correction for ONE bounded known-vocabulary typo, never apply it.
+  if(unknown.length===1&&unknown[0].length>=5&&unknown[0].length<=18){
+   const candidates=vocabulary.filter(w=>oneEdit(unknown[0],w))
+   const concepts=new Set(candidates.map(w=>lexicon.get(w)))
+   if(concepts.size===1){const corrected=tokens.map(t=>t==='?'?[...concepts][0]!:t),p=clause(corrected);if(p)return clarify(`واش كتقصد «${getQuestion(p.questionId)?.text}»؟ صحّحنا كلمة محتملة؛ أكّد المعنى قبل الجواب.`,[meaning(p)])}
+  }
+  return unsupported()
+ }
+ if(tokens.includes('SEA'))return ambiguous()
+ const one=clause(tokens)
+ if(one)return {kind:'understood',parts:[meaning(one)],text:raw.trim()}
+ const or=tokens.indexOf('OR')
+ if(or>=0){
+  let left=clause(tokens.slice(0,or)),right=clause(tokens.slice(or+1))
+  if(!right&&tokens.slice(or+1).length===1&&tokens.includes('EAT'))right=clause(['EAT',tokens[or+1]])
+  const choices=[left,right].filter((p):p is SemanticMeaning=>!!p).map(meaning)
+  return clarify('كتسول على واحد من هاد الاحتمالات؟ اختار صفة وحدة، وما غاديش نحسب «أو» بحال «و».',choices.length===2?choices:[])
+ }
+ const and=tokens.indexOf('AND')
+ if(and>=0&&tokens.lastIndexOf('AND')===and){
+  const parts=[clause(tokens.slice(0,and)),clause(tokens.slice(and+1))]
+  if(parts.every(Boolean)&&parts[0]!.questionId!==parts[1]!.questionId)return {kind:'understood',parts:parts.map(p=>meaning(p!)),text:raw.trim()}
+ }
+ return unsupported()
+}
+export function meaningLabel(part:Meaning):string {
+ const label=getQuestion(part.questionId)?.text||''
+ return part.negated?`هل العكس صحيح: «${label}»؟`:label
+}
+export function replyToMeanings(parts:Meaning[],humanSecret:number,version:CatalogueVersion=2):string {
+ return parts.map(part=>{
+  const positive=answerHumanQuestion(part.questionId,humanSecret,version)==='yes',agrees=part.negated?!positive:positive
+  const descriptions:Record<string,string>={is_mammal:'من الثدييات',is_domestic:'مصنّف كحيوان أليف',has_fur:'عنده فرو',has_horns:'عنده قرون',has_tail:'عنده ذيل',can_swim:'كيقدر يسبح',can_fly:'كيقدر يطير',is_nocturnal:'ينشط ليلاً',lives_in_groups:'كيعيش في مجموعات',is_african:'مصنّف كحيوان إفريقي',habitat_water:'موطنه الماء',habitat_land:'موطنه البر',habitat_desert:'موطنه الصحراء',habitat_jungle:'موطنه الغابة',habitat_arctic:'موطنه المناطق القطبية',habitat_air:'موطنه الجو',habitat_domestic:'موطنه المنزل أو المزرعة',size_small:'حجمه صغير',size_medium:'حجمه متوسط',size_large:'حجمه كبير',size_huge:'حجمه ضخم',diet_carnivore:'مصنّف ضمن آكلات اللحوم',diet_herbivore:'مصنّف ضمن آكلات النباتات',diet_omnivore:'مصنّف ضمن آكلات النباتات واللحوم'}
+  return `${agrees?'نعم ✓':'لا ✕'} ${positive?'حيوانك':'بطاقة حيوانك لا تؤكد أنه'} ${descriptions[part.questionId]||extraQuestions.find(q=>q.id===part.questionId)?.description||''}${positive?' حسب بطاقة اللعبة.':'.'}`
+ }).join('\n')
 }

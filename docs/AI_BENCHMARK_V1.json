@@ -1,0 +1,466 @@
+{
+  "baselineCommit": "dae440b3",
+  "seedCount": 20,
+  "groups": [
+    [
+      {
+        "id": 6,
+        "name": "حصان"
+      },
+      {
+        "id": 15,
+        "name": "حمار"
+      }
+    ],
+    [
+      {
+        "id": 14,
+        "name": "ببغاء"
+      },
+      {
+        "id": 48,
+        "name": "طوقان"
+      }
+    ],
+    [
+      {
+        "id": 37,
+        "name": "زبابة"
+      },
+      {
+        "id": 44,
+        "name": "قنفذ"
+      }
+    ]
+  ],
+  "fields": [
+    {
+      "id": "is_mammal",
+      "yes": 33,
+      "no": 27
+    },
+    {
+      "id": "is_domestic",
+      "yes": 8,
+      "no": 52
+    },
+    {
+      "id": "has_fur",
+      "yes": 26,
+      "no": 34
+    },
+    {
+      "id": "has_horns",
+      "yes": 4,
+      "no": 56
+    },
+    {
+      "id": "has_tail",
+      "yes": 52,
+      "no": 8
+    },
+    {
+      "id": "can_fly",
+      "yes": 12,
+      "no": 48
+    },
+    {
+      "id": "can_swim",
+      "yes": 19,
+      "no": 41
+    },
+    {
+      "id": "is_nocturnal",
+      "yes": 7,
+      "no": 53
+    },
+    {
+      "id": "lives_in_groups",
+      "yes": 10,
+      "no": 50
+    },
+    {
+      "id": "is_african",
+      "yes": 11,
+      "no": 49
+    },
+    {
+      "id": "habitat_water",
+      "yes": 11,
+      "no": 49
+    },
+    {
+      "id": "habitat_land",
+      "yes": 29,
+      "no": 31
+    },
+    {
+      "id": "habitat_desert",
+      "yes": 3,
+      "no": 57
+    },
+    {
+      "id": "habitat_jungle",
+      "yes": 6,
+      "no": 54
+    },
+    {
+      "id": "habitat_arctic",
+      "yes": 4,
+      "no": 56
+    },
+    {
+      "id": "habitat_air",
+      "yes": 0,
+      "no": 60
+    },
+    {
+      "id": "habitat_domestic",
+      "yes": 7,
+      "no": 53
+    },
+    {
+      "id": "size_small",
+      "yes": 23,
+      "no": 37
+    },
+    {
+      "id": "size_medium",
+      "yes": 7,
+      "no": 53
+    },
+    {
+      "id": "size_large",
+      "yes": 20,
+      "no": 40
+    },
+    {
+      "id": "size_huge",
+      "yes": 10,
+      "no": 50
+    },
+    {
+      "id": "diet_herbivore",
+      "yes": 24,
+      "no": 36
+    },
+    {
+      "id": "diet_carnivore",
+      "yes": 23,
+      "no": 37
+    },
+    {
+      "id": "diet_omnivore",
+      "yes": 13,
+      "no": 47
+    }
+  ],
+  "results": {
+    "easy": {
+      "easy": {
+        "runs": 300,
+        "successRate": 1,
+        "averageQuestions": 4.266666666666667,
+        "medianQuestions": 4,
+        "worstQuestions": 6,
+        "worstActions": 8,
+        "averageActions": 5.333333333333333,
+        "incorrectGuesses": 20,
+        "stuck": 0,
+        "indistinguishable": 40
+      },
+      "medium": {
+        "runs": 300,
+        "successRate": 1,
+        "averageQuestions": 3.8066666666666666,
+        "medianQuestions": 4,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 4.873333333333333,
+        "incorrectGuesses": 20,
+        "stuck": 0,
+        "indistinguishable": 40
+      },
+      "hard": {
+        "runs": 15,
+        "successRate": 1,
+        "averageQuestions": 3.8,
+        "medianQuestions": 4,
+        "worstQuestions": 4,
+        "worstActions": 5,
+        "averageActions": 4.866666666666666,
+        "incorrectGuesses": 1,
+        "stuck": 0,
+        "indistinguishable": 2
+      }
+    },
+    "medium": {
+      "easy": {
+        "runs": 500,
+        "successRate": 1,
+        "averageQuestions": 5.214,
+        "medianQuestions": 5,
+        "worstQuestions": 8,
+        "worstActions": 9,
+        "averageActions": 6.214,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 500,
+        "successRate": 1,
+        "averageQuestions": 4.742,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 7,
+        "averageActions": 5.742,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 25,
+        "successRate": 1,
+        "averageQuestions": 4.72,
+        "medianQuestions": 5,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.72,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "hard": {
+      "easy": {
+        "runs": 400,
+        "successRate": 1,
+        "averageQuestions": 4.885,
+        "medianQuestions": 5,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 5.885,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "medium": {
+        "runs": 400,
+        "successRate": 1,
+        "averageQuestions": 4.4,
+        "medianQuestions": 4,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "hard": {
+        "runs": 20,
+        "successRate": 1,
+        "averageQuestions": 4.4,
+        "medianQuestions": 4,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "random": {
+      "easy": {
+        "runs": 1200,
+        "successRate": 1,
+        "averageQuestions": 6.554166666666666,
+        "medianQuestions": 7,
+        "worstQuestions": 10,
+        "worstActions": 11,
+        "averageActions": 7.604166666666667,
+        "incorrectGuesses": 60,
+        "stuck": 0,
+        "indistinguishable": 120
+      },
+      "medium": {
+        "runs": 1200,
+        "successRate": 1,
+        "averageQuestions": 5.9025,
+        "medianQuestions": 6,
+        "worstQuestions": 8,
+        "worstActions": 9,
+        "averageActions": 6.9525,
+        "incorrectGuesses": 60,
+        "stuck": 0,
+        "indistinguishable": 120
+      },
+      "hard": {
+        "runs": 60,
+        "successRate": 1,
+        "averageQuestions": 5.866666666666666,
+        "medianQuestions": 6,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 6.916666666666667,
+        "incorrectGuesses": 3,
+        "stuck": 0,
+        "indistinguishable": 6
+      }
+    }
+  },
+  "comparisons": {
+    "easy": {
+      "balanced": {
+        "runs": 15,
+        "successRate": 1,
+        "averageQuestions": 3.8,
+        "medianQuestions": 4,
+        "worstQuestions": 4,
+        "worstActions": 5,
+        "averageActions": 4.866666666666666,
+        "incorrectGuesses": 1,
+        "stuck": 0,
+        "indistinguishable": 2
+      },
+      "oldLookaheadSameSafeGuessPolicy": {
+        "runs": 15,
+        "successRate": 1,
+        "averageQuestions": 3.8,
+        "medianQuestions": 4,
+        "worstQuestions": 4,
+        "worstActions": 5,
+        "averageActions": 4.866666666666666,
+        "incorrectGuesses": 1,
+        "stuck": 0,
+        "indistinguishable": 2
+      },
+      "oldEngineActual": {
+        "runs": 15,
+        "successRate": 1,
+        "averageQuestions": 3,
+        "medianQuestions": 3,
+        "worstQuestions": 3,
+        "worstActions": 5,
+        "averageActions": 4.466666666666667,
+        "incorrectGuesses": 7,
+        "stuck": 0,
+        "indistinguishable": 2
+      }
+    },
+    "medium": {
+      "balanced": {
+        "runs": 25,
+        "successRate": 1,
+        "averageQuestions": 4.72,
+        "medianQuestions": 5,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.72,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "oldLookaheadSameSafeGuessPolicy": {
+        "runs": 25,
+        "successRate": 1,
+        "averageQuestions": 4.72,
+        "medianQuestions": 5,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.72,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "oldEngineActual": {
+        "runs": 25,
+        "successRate": 1,
+        "averageQuestions": 4,
+        "medianQuestions": 4,
+        "worstQuestions": 4,
+        "worstActions": 6,
+        "averageActions": 5.36,
+        "incorrectGuesses": 9,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "hard": {
+      "balanced": {
+        "runs": 20,
+        "successRate": 1,
+        "averageQuestions": 4.4,
+        "medianQuestions": 4,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "oldLookaheadSameSafeGuessPolicy": {
+        "runs": 20,
+        "successRate": 1,
+        "averageQuestions": 4.4,
+        "medianQuestions": 4,
+        "worstQuestions": 5,
+        "worstActions": 6,
+        "averageActions": 5.4,
+        "incorrectGuesses": 0,
+        "stuck": 0,
+        "indistinguishable": 0
+      },
+      "oldEngineActual": {
+        "runs": 20,
+        "successRate": 1,
+        "averageQuestions": 3.6,
+        "medianQuestions": 4,
+        "worstQuestions": 4,
+        "worstActions": 6,
+        "averageActions": 5,
+        "incorrectGuesses": 8,
+        "stuck": 0,
+        "indistinguishable": 0
+      }
+    },
+    "random": {
+      "balanced": {
+        "runs": 60,
+        "successRate": 1,
+        "averageQuestions": 5.883333333333334,
+        "medianQuestions": 6,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 6.933333333333334,
+        "incorrectGuesses": 3,
+        "stuck": 0,
+        "indistinguishable": 6
+      },
+      "oldLookaheadSameSafeGuessPolicy": {
+        "runs": 60,
+        "successRate": 1,
+        "averageQuestions": 5.883333333333334,
+        "medianQuestions": 6,
+        "worstQuestions": 7,
+        "worstActions": 8,
+        "averageActions": 6.933333333333334,
+        "incorrectGuesses": 3,
+        "stuck": 0,
+        "indistinguishable": 6
+      },
+      "oldEngineActual": {
+        "runs": 60,
+        "successRate": 1,
+        "averageQuestions": 5.15,
+        "medianQuestions": 5,
+        "worstQuestions": 6,
+        "worstActions": 8,
+        "averageActions": 6.566666666666666,
+        "incorrectGuesses": 25,
+        "stuck": 0,
+        "indistinguishable": 6
+      }
+    }
+  }
+}

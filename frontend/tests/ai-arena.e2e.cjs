@@ -7,7 +7,7 @@ const path=require('node:path');
   const page=await browser.newPage({viewport:{width:414,height:896}});
   await page.goto((process.env.TEST_URL||'http://127.0.0.1:15178')+'/ai');
   await page.waitForLoadState('networkidle');
-  for(const width of [320,414,1280]){
+  for(const width of [320,375,390,414,896,1280]){
    await page.setViewportSize({width,height:896});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal overflow');
    assert(await page.getByRole('button',{name:'🎮 ابدأ اللعب'}).isVisible());

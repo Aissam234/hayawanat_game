@@ -1,31 +1,36 @@
 import data from './animals.json'
+import legacyData from './animals.v1.json'
+import { extraQuestions } from './catalogueQuestions'
+export type CatalogueVersion = 1 | 2
+export const CATALOGUE_VERSION: CatalogueVersion = 2
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type AnimalLevel = Difficulty | 'random'
-export type Animal = typeof data[number]
-export const animals: readonly Animal[] = data
+export type Animal = typeof legacyData[number] & Partial<Omit<typeof data[number], keyof typeof legacyData[number]>> & { catalogueVersion: CatalogueVersion }
+export const animals: readonly Animal[] = data.map(a => ({...a, catalogueVersion: 2}))
+export const legacyAnimals: readonly Animal[] = legacyData.map(a => ({...a, catalogueVersion: 1}))
 export type Answer = 'yes' | 'no' | 'invalid'
-export type Question = { id: string; category: string; text: string; test: (animal: Animal) => boolean }
+export type Question = { id: string; category: string; text: string; minCatalogueVersion?: 2; test: (animal: Animal) => boolean }
 
-const bool = (id: keyof Animal, text: string, category = 'الصفات'): Question => ({
+const bool = (id: keyof Animal, text: string, category = 'القدرات'): Question => ({
   id, text, category, test: a => Boolean(a[id]),
 })
 
-export const QUESTION_PREFIX = 'هل الحيوان عندي؟'
+export const QUESTION_PREFIX = 'هاد الحيوان عندي…'
 export const formatQuestion = (text: string) =>
-  `${QUESTION_PREFIX} ${text.replace(/^هل الحيوان عندي\s*[.؟?]*\s*/, '')}`
+  `${QUESTION_PREFIX} ${text.replace(/^(?:هل الحيوان عندي|هاد الحيوان عندي)\s*[.…؟?]*\s*/, '')}`
 
 export const questions: readonly Question[] = [
-  bool('is_mammal', 'هل هو من الثدييات؟', 'النوع'),
-  bool('is_domestic', 'هل يُستأنَس؟ يعيش في البيت؟', 'النوع'),
-  bool('has_fur', 'هل يغطيه جسم الفراء؟', 'النوع'),
-  bool('has_horns', 'هل لديه قرون؟', 'النوع'),
-  bool('has_tail', 'هل لديه ذيل؟', 'النوع'),
-  bool('can_fly', 'هل يستطيع الطيران بحسب طبيعة اللعبة؟'),
-  bool('can_swim', 'هل يستطيع السباحة بحسب طبيعة اللعبة؟'),
-  bool('is_nocturnal', 'هل يمشي ليلاً؟'),
-  bool('lives_in_groups', 'هل يعيش في مجموعات؟'),
-  bool('is_african', 'هل موطنه إفريقيا؟', 'الموطن'),
+  bool('is_mammal', 'واش هو من الثدييات؟', 'النوع'),
+  bool('is_domestic', 'واش حيوان أليف؟', 'النوع'),
+  bool('has_fur', 'واش جسمه مغطّي بالفرو؟', 'النوع'),
+  bool('has_horns', 'واش عندو قرون؟', 'النوع'),
+  bool('has_tail', 'واش عندو ديل؟', 'النوع'),
+  bool('can_fly', 'واش كيقدر يطير؟'),
+  bool('can_swim', 'واش كيقدر يسبح؟'),
+  bool('is_nocturnal', 'واش كينشط بالليل؟'),
+  bool('lives_in_groups', 'واش كيعيش فمجموعات؟'),
+  bool('is_african', 'واش موطنه الأصلي كيشمل إفريقيا؟', 'الموطن'),
   ...(['water', 'land', 'desert', 'jungle', 'arctic', 'air', 'domestic'] as const).map(
     (value, i) => ({
       id: 'habitat_' + value,
@@ -35,8 +40,8 @@ export const questions: readonly Question[] = [
         'هل موطنه البر؟',
         'هل يعيش في الصحراء؟',
         'هل يعيش في الغابة؟',
-        'هل يعيش في المناطق الباردة؟',
-        'هل موطنه المناطق هو الهواء؟',
+        'هل موطنه المناطق القطبية؟',
+        'هل موطنه المصنّف هو الجو؟',
         'هل موطنه المنزل أو المزرعة؟',
       ][i],
       test: (a: Animal) => a.habitat === value,
@@ -52,23 +57,28 @@ export const questions: readonly Question[] = [
     id: 'diet_' + value,
     category: 'الغذاء',
     text: [
-      'هل يأكل النباتات؟',
-      'هل يفترس ويأكل لحوم؟',
-      'هل يأكل النباتات والحيوانات معاً؟',
+      'واش من الحيوانات العاشبة (آكلات النباتات)؟',
+      'واش من الحيوانات اللاحمة (آكلات اللحوم)؟',
+      'واش من الحيوانات القارتة (آكلات النباتات واللحوم)؟',
     ][i],
     test: (a: Animal) => a.diet === value,
   })),
+  ...extraQuestions,
 ]
 
+export const getCatalogueAnimal = (id: number, version: CatalogueVersion = 2) => (version === 1 ? legacyAnimals : animals).find(a => a.id === id)!
+export const questionsForCatalogue = (version: CatalogueVersion = 2) => questions.filter(q => !q.minCatalogueVersion || version === 2)
 export const getAnimal = (id: number) => animals.find(a => a.id === id)!
 export const getQuestion = (id: string) => questions.find(q => q.id === id)
 
-export const getInitialCandidates = (level: AnimalLevel): Animal[] =>
-  animals.filter(a => level === 'random' || a.difficulty === level)
+export const getInitialCandidates = (level: AnimalLevel, version: CatalogueVersion = 2): Animal[] =>
+  (version === 1 ? legacyAnimals : animals).filter(a => level === 'random' || a.difficulty === level)
 
 export const evaluateQuestionSplit = (candidates: readonly Animal[], question: Question) => {
   const yes = candidates.filter(question.test).length
-  return { yes, no: candidates.length - yes, score: Math.min(yes, candidates.length - yes) }
+  const n=candidates.length,no=n-yes,p=n?yes/n:0
+  const entropy=p>0&&p<1?-p*Math.log2(p)-(1-p)*Math.log2(1-p):0
+  return {yes,no,score:Math.min(yes,no),expectedRemaining:n?(yes*yes+no*no)/n:0,entropy}
 }
 
 export const filterCandidates = (
@@ -84,100 +94,46 @@ export const getPossibleQuestions = (
   candidates: readonly Animal[],
   asked: readonly string[],
 ): Question[] =>
-  questions.filter(q => !asked.includes(q.id) && evaluateQuestionSplit(candidates, q).score > 0)
+  questions.filter(q => (!q.minCatalogueVersion || candidates.every(a => a.catalogueVersion === 2)) && !asked.includes(q.id) && evaluateQuestionSplit(candidates, q).score > 0)
 
-/**
- * 2-level lookahead: picks the question that maximises the *minimum* worst-case
- * candidates left after two questions (minimax over the yes/no branches).
- * Falls back to the simpler single-level split score when no lookahead gain exists.
- */
-export function chooseBestQuestion(
-  candidates: readonly Animal[],
-  asked: readonly string[],
-): Question | undefined {
-  const possible = getPossibleQuestions(candidates, asked)
-  if (!possible.length) return undefined
-
-  let bestQuestion: Question | undefined
-  let bestScore = -1
-
-  for (const q of possible) {
-    const { yes, no } = evaluateQuestionSplit(candidates, q)
-    const yesBranch = candidates.filter(q.test)
-    const noBranch = candidates.filter(a => !q.test(a))
-
-    // For each branch, compute the best follow-up split score available
-    const bestFollowUp = (branch: readonly Animal[]) => {
-      if (branch.length <= 1) return 0
-      const followUps = getPossibleQuestions(branch, [...asked, q.id])
-      if (!followUps.length) return 0
-      return Math.max(...followUps.map(fq => evaluateQuestionSplit(branch, fq).score))
-    }
-
-    // Primary: single-level information gain (balanced split)
-    const singleLevel = Math.min(yes, no)
-    // Secondary: lookahead bonus — how well we can split either branch next turn
-    const lookaheadBonus =
-      (bestFollowUp(yesBranch) / Math.max(yesBranch.length, 1) +
-        bestFollowUp(noBranch) / Math.max(noBranch.length, 1)) *
-      0.5
-
-    // Combined score: primary drives the choice, lookahead breaks ties
-    const score = singleLevel * 100 + lookaheadBonus * candidates.length
-
-    if (score > bestScore) {
-      bestScore = score
-      bestQuestion = q
-    }
-  }
-
-  return bestQuestion
+/** Expected candidate count after up to two adaptive questions, uniform prior.
+ * Terminal/unsplittable branches retain their size. Lower is better. */
+export function evaluateLookahead(candidates:readonly Animal[],asked:readonly string[],q:Question):number {
+  if(!candidates.length)return 0
+  return [candidates.filter(q.test),candidates.filter(a=>!q.test(a))].reduce((total,branch)=>{
+    const follow=getPossibleQuestions(branch,[...asked,q.id])
+    const remaining=follow.length?Math.min(...follow.map(f=>evaluateQuestionSplit(branch,f).expectedRemaining)):branch.length
+    return total+branch.length/candidates.length*remaining
+  },0)
 }
-
-// ---------------------------------------------------------------------------
-// Confidence-based guessing
-// ---------------------------------------------------------------------------
-
-/**
- * Returns a confidence score [0,1] for a candidate being the target animal,
- * based on how uniquely it is distinguished from the remaining pool.
- * Higher = more likely to be the right guess.
- */
-function candidateConfidence(candidate: Animal, candidates: readonly Animal[]): number {
-  if (candidates.length <= 1) return 1
-  // Count questions that uniquely identify this candidate vs the rest
-  const uniqueFeatures = questions.filter(q => {
-    const val = q.test(candidate)
-    return candidates.filter(a => a !== candidate).every(a => q.test(a) !== val)
-  }).length
-  return uniqueFeatures / Math.max(questions.length, 1)
-}
-
-/**
- * Picks the best guess from candidates, preferring the one most uniquely
- * identifiable — i.e. the one the AI is most confident about.
- */
-export function pickBestGuess(
-  candidates: readonly Animal[],
-  random: () => number,
-): Animal {
-  if (candidates.length === 1) return candidates[0]
-
-  // Score each candidate
-  const scored = candidates.map(a => ({
-    animal: a,
-    confidence: candidateConfidence(a, candidates),
-  }))
-  scored.sort((a, b) => b.confidence - a.confidence)
-
-  // If the top candidate is clearly better (≥50% confidence boost), pick it
-  if (scored[0].confidence > 0.1 && scored[0].confidence > scored[1].confidence * 1.5) {
-    return scored[0].animal
+export function chooseBestQuestion(candidates:readonly Animal[],asked:readonly string[]):Question|undefined {
+  const useful=getPossibleQuestions(candidates,asked)
+  if(!useful.length)return undefined
+  // Evaluate each predicate once. Pair intersections represent the same adaptive
+  // two-level tree without repeatedly filtering arrays and retesting animal facts.
+  const outcomes=useful.map(q=>candidates.map(a=>q.test(a)?1:0))
+  const counts=outcomes.map(row=>row.reduce<number>((sum,x)=>sum+x,0))
+  const n=candidates.length
+  let best=0,bestTwo=Infinity,bestOne=Infinity
+  for(let i=0;i<useful.length;i++){
+    const yes=counts[i],no=n-yes
+    let afterYes=yes,afterNo=no
+    for(let j=0;j<useful.length;j++){
+      if(i===j)continue
+      let both=0
+      for(let k=0;k<n;k++)both+=outcomes[i][k]*outcomes[j][k]
+      const yesNo=yes-both,noYes=counts[j]-both,noNo=no-noYes
+      afterYes=Math.min(afterYes,(both*both+yesNo*yesNo)/yes)
+      afterNo=Math.min(afterNo,(noYes*noYes+noNo*noNo)/no)
+    }
+    const two=yes/n*afterYes+no/n*afterNo,one=(yes*yes+no*no)/n
+    if(two<bestTwo || (two===bestTwo && one<bestOne)){best=i;bestTwo=two;bestOne=one}
   }
-
-  // Otherwise random among the top half
-  const top = scored.slice(0, Math.max(1, Math.ceil(scored.length / 2)))
-  return top[Math.floor(random() * top.length)].animal
+  return useful[best]
+}
+/** No prior distinguishes surviving candidates. Sample uniformly only when needed. */
+export function pickBestGuess(candidates:readonly Animal[],random:()=>number):Animal {
+  return candidates[Math.min(candidates.length-1,Math.floor(random()*candidates.length))]
 }
 
 // ---------------------------------------------------------------------------
@@ -198,57 +154,12 @@ export function chooseAiAction(knowledge: ReasoningState, random: () => number):
   const { candidates, asked, difficulty } = knowledge
   if (!candidates.length) return { type: 'exhausted' }
 
-  // ── Decide whether to guess now based on confidence ────────────────────────
-  const best = pickBestGuess(candidates, random)
-  const conf = candidateConfidence(best, candidates)
-
-  // On hard: guess if only 1-2 left OR very high confidence
-  if (difficulty === 'hard') {
-    if (candidates.length <= 2 || conf > 0.6) {
-      const animal = candidates.length <= 1 ? candidates[0] : best
-      return {
-        type: 'guess',
-        animalId: animal.id,
-        confidence: conf > 0.8 ? 'certain' : conf > 0.5 ? 'confident' : 'uncertain',
-      }
-    }
-  }
-
-  // On medium: guess if 1 left, or 2-3 left with confidence > 0.4
-  if (difficulty === 'medium') {
-    if (
-      candidates.length === 1 ||
-      (candidates.length <= 3 && conf > 0.4)
-    ) {
-      return {
-        type: 'guess',
-        animalId: best.id,
-        confidence: conf > 0.7 ? 'certain' : conf > 0.4 ? 'confident' : 'uncertain',
-      }
-    }
-  }
-
-  // On easy: only guess when 100% certain (1 candidate)
-  if (difficulty === 'easy' && candidates.length === 1) {
-    return { type: 'guess', animalId: candidates[0].id, confidence: 'certain' }
-  }
-
-  // ── Pick a question ────────────────────────────────────────────────────────
-  const ranked = getPossibleQuestions(candidates, asked).sort(
-    (a, b) =>
-      evaluateQuestionSplit(candidates, b).score - evaluateQuestionSplit(candidates, a).score,
-  )
-  if (!ranked.length) {
-    // No useful questions left — just guess
-    return {
-      type: 'guess',
-      animalId: best.id,
-      confidence: 'uncertain',
-    }
-  }
-
-  // Use lookahead-optimised selection (already does it internally in chooseBestQuestion)
-  const optimal = chooseBestQuestion(candidates, asked)
+  if(candidates.length===1)return {type:'guess',animalId:candidates[0].id,confidence:'certain'}
+  const ranked=getPossibleQuestions(candidates,asked).sort((a,b)=>
+    evaluateQuestionSplit(candidates,a).expectedRemaining-evaluateQuestionSplit(candidates,b).expectedRemaining)
+  // Even at two candidates, ask if any unused property separates them.
+  if(!ranked.length)return {type:'guess',animalId:pickBestGuess(candidates,random).id,confidence:'uncertain'}
+  const optimal=chooseBestQuestion(candidates,asked)
 
   // Difficulty-based noise: easy sometimes picks a random question, medium slightly
   let chosenQuestion = optimal ?? ranked[0]
@@ -263,10 +174,10 @@ export function chooseAiAction(knowledge: ReasoningState, random: () => number):
 
 export const validateGuess = (guessId: number, secretId: number) => guessId === secretId
 
-export const answerHumanQuestion = (questionId: string, humanSecret: number): Answer => {
+export const answerHumanQuestion = (questionId: string, humanSecret: number, version: CatalogueVersion = 2): Answer => {
   const q = getQuestion(questionId)
   if (!q) return 'invalid'
-  return q.test(getAnimal(humanSecret)) ? 'yes' : 'no'
+  return q.test(getCatalogueAnimal(humanSecret, version)) ? 'yes' : 'no'
 }
 
 export function selectSecrets(pool: readonly Animal[], random: () => number): [number, number] {

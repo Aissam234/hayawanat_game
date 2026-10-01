@@ -23,7 +23,7 @@ const key='hayawanat.ai-round.v1',url=process.env.TEST_URL||'http://127.0.0.1:15
   assert.deepEqual((await snapshot()).round,asked.round);
   await page.getByRole('button',{name:'✅ نعم',exact:true}).click();
   await page.getByRole('button',{name:'🎯 عرفت حيواني'}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'🐱 قطة',exact:true}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'🐱 قطة منزلية',exact:true}).click();
   await page.getByRole('button',{name:'تأكيد التخمين'}).click();
   await page.getByRole('heading',{name:'🏆 لقد فزت!'}).waitFor();
   await page.reload();
