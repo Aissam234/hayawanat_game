@@ -8,7 +8,7 @@ export function cancelOnlineRequests() {
   pendingRequests.clear()
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(path: string, options?: RequestInit & { signal?: AbortSignal }): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options?.headers as any,
@@ -28,28 +28,57 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   const controller = new AbortController()
+
+  // Forward any caller-supplied signal so cancelOnlineRequests() still works
+  const callerSignal = options?.signal
+  if (callerSignal) callerSignal.addEventListener('abort', () => controller.abort())
+
+  // 15-second hard timeout — Render free tier can take 30s+ to cold-start.
+  // Better to show a clear error than freeze the button forever.
+  const timeoutId = setTimeout(() => controller.abort(), 15_000)
+
   pendingRequests.add(controller)
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...options,
-      signal: options?.signal || controller.signal,
+      signal: controller.signal,
       headers,
     })
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'خطأ في الشبكة' }))
-      throw new ApiError(typeof err.detail === 'string' ? err.detail : 'تحقق من البيانات المدخلة', res.status)
+      throw new ApiError(
+        typeof err.detail === 'string' ? err.detail : 'تحقق من البيانات المدخلة',
+        res.status,
+      )
     }
 
     return await res.json()
-  } finally { pendingRequests.delete(controller) }
+  } catch (e: any) {
+    // AbortError means either our timeout fired or cancelOnlineRequests() was called
+    if (e?.name === 'AbortError') {
+      throw new ApiError(
+        'الخادم نائم أو الاتصال بطيء — انتظر 30 ثانية وحاول مجدداً.',
+        503,
+      )
+    }
+    throw e
+  } finally {
+    clearTimeout(timeoutId)
+    pendingRequests.delete(controller)
+  }
 }
 
 // Auth endpoints
 export const authApi = {
-  login: (data: { username: string; password: string }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  register: (data: { username: string; password: string; avatar_id: import('../components/auth/Avatar').AvatarId }) => request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  getMe: (signal?: AbortSignal) => request<any>('/api/auth/me', { signal }),
+  login: (data: { username: string; password: string }) =>
+    request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+
+  register: (data: { username: string; password: string; avatar_id: import('../components/auth/Avatar').AvatarId }) =>
+    request<{ access_token: string; user: import('../store/authStore').User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+
+  getMe: (signal?: AbortSignal) =>
+    request<any>('/api/auth/me', { signal }),
 }
 
 // Rooms
